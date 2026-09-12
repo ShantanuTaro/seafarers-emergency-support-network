@@ -36,20 +36,65 @@ SESN is built around those three, and around one hard rule: **nothing sends itse
 
 ## Run it
 
+**Requires Python 3.12 or newer.** No database, no API key, no build step, no Docker.
+
 ```bash
-python -m venv .venv && .venv/bin/pip install -r requirements.txt
+git clone https://github.com/ShantanuTaro/seafarers-emergency-support-network.git
+cd seafarers-emergency-support-network
+
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
 .venv/bin/uvicorn sesn.main:app
 ```
 
-Open <http://127.0.0.1:8000>. No API key required. With no LLM key configured, triage
-falls back to the deterministic baseline classifier, so the whole system runs offline.
-To enable the agent path, set any of `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `GROQ_API_KEY`.
+Then open **<http://127.0.0.1:8000>** and pick a portal.
+
+The first request takes a second or two while the simulator seeds 60,000 vessels.
+Stop the server with `Ctrl+C`.
+
+| Flag | Why |
+| --- | --- |
+| `--port 8077` | Run on a different port if 8000 is taken |
+| `--reload` | Restart on file changes while developing |
+| `--host 0.0.0.0` | Reachable from other machines on your network |
+
+### Where to start
+
+1. Open **`/control`**, search for a vessel (try `marslev`), pick one, and inject a
+   **Grounding**. It is the interesting case: nav status goes to 6, the ship stops,
+   and no voice report is generated at all, so triage has to work it out from
+   telemetry alone.
+2. Switch to **`/ops`**. The incident is in the queue with its classification, the
+   basis for it, and five drafted packets all sitting unapproved. Put a name in the
+   operator field and approve the MRCC packet.
+3. Open **`/vessel`**, sign in to that same ship, and see the approval appear from the
+   crew's side.
+
+### Optional: enable the LLM triage path
+
+With no key configured, triage falls back to the deterministic baseline classifier and
+the whole system runs offline. To use the agent path, set any one of these before
+starting the server:
 
 ```bash
-.venv/bin/python test_sesn.py            # invariant checks
-.venv/bin/python -m evals.run            # triage eval table
-.venv/bin/python -m evals.run --gate     # regression ratchet, exits 1 if triage got worse
+export GEMINI_API_KEY=...     # or MISTRAL_API_KEY, or GROQ_API_KEY
 ```
+
+All three are free tiers. The chain tries them in order and trips a circuit breaker on
+rate limits, falling back to the baseline if every provider is down.
+
+### Tests and evals
+
+```bash
+.venv/bin/python test_sesn.py            # 8 invariant checks
+.venv/bin/python -m evals.run            # triage eval table
+.venv/bin/python -m evals.run --agent    # same corpus, LangGraph path (needs a key)
+.venv/bin/python -m evals.run --gate     # regression ratchet, exits 1 if triage got worse
+.venv/bin/python check_web.py            # portal JS syntax (needs node, skips without)
+```
+
+All of the above run in CI on every push.
 
 ---
 
