@@ -31,22 +31,13 @@ jobs:
         if: always()
         run: cat eval-results.md >> "$GITHUB_STEP_SUMMARY"
 
-      # The portal is three static pages and no build step, so a syntax error in
-      # them reaches production unless something parses them here.
+      # The portal is three static pages with no build step, so a syntax error in
+      # them reaches a browser with nothing in between. This is the thing in between.
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
       - name: Portal syntax check
-        run: |
-          python - <<'PY'
-          import pathlib, re
-          for page in pathlib.Path("web").glob("*.html"):
-              for i, block in enumerate(re.findall(r"<script>(.*?)</script>",
-                                                   page.read_text(), re.S)):
-                  pathlib.Path(f"/tmp/{page.stem}{i}.js").write_text(block)
-          PY
-          for f in /tmp/*.js; do node --check "$f"; done
-          node --check web/common.js
+        run: python check_web.py
 
       # The app has to actually boot and serve all three portals.
       - name: Smoke test
