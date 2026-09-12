@@ -1,0 +1,364 @@
+"""FastAPI: simulator, three portals, approval gate, audit log.
+
+Three separate front ends over one world:
+
+  /vessel   seafarer portal, for a master or crew member aboard one ship
+  /ops      operations portal, for the shore watch: queue and approvals
+  /control  control panel, for fault injection and simulator control
+
+They are separate because the jobs are separate. A master needs to know that shore
+has seen them and who is coming; a watchkeeper needs a queue and an approval gate;
+an engineer needs to break things. One screen serving all three is how real ops
+consoles end up unusable.
+
+The approval gate lives here and only here. `build_packets` creates every packet
+unapproved and nothing but an operator action flips that bit.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import json
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
+from . import providers, response, triage
+from .models import Incident, Telemetry
+from .sim import FAULTS, KINDS, Ship, Simulator
+
+TICK_SECONDS = 1.0
+ROOT = Path(__file__).resolve().parent.parent
+WEB_DIR = ROOT / "web"
+AUDIT_PATH = ROOT / "audit.jsonl"
+
+sim = Simulator()
+incidents: dict[str, Incident] = {}
+clients: dict[WebSocket, dict] = {}  # ws -> {"bounds": [...], "cap": int}
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def audit(event: str, **fields) -> None:
+    """Append-only. Assume every line becomes evidence in a marine board inquiry:
+    never rewritten, never deleted, and an approval always carries a name."""
+    with AUDIT_PATH.open("a") as fh:
+        fh.write(json.dumps({"ts": _now(), "event": event, **fields}) + "\n")
+
+
+def _ship_detail(s: Ship) -> dict:
+    return {
+        "mmsi": s.mmsi, "name": s.name, "operator": s.operator, "kind": s.kind,
+        "flag": s.flag, "pob": s.pob, "lat": round(s.lat, 4), "lon": round(s.lon, 4),
+        "course": round(s.course), "speed": round(s.speed_kn, 1),
+        "navStatus": s.nav_status, "corridor": s.corridor,
+        "destination": s.destination, "distressed": s.distressed,
+        "dark": s.ais_dark, "fault": s.injected_fault,
+        "sarCapable": s.can_assist,
+    }
+
+
+async def _tick_loop() -> None:
+    while True:
+        sim.tick(TICK_SECONDS)
+        stats = sim.stats()
+        distressed = [_ship_detail(s) for s in sim.distressed()]
+        dead = []
+        for ws, cfg in list(clients.items()):
+            rows, total = sim.frame(cfg.get("bounds"), cfg.get("cap", 2500))
+            try:
+                await ws.send_json({
+                    "type": "frame", "ts": _now(), "rows": rows,
+                    "inView": total, "stats": stats, "distressed": distressed,
+                    "incidents": len(incidents),
+                })
+            except (WebSocketDisconnect, RuntimeError):
+                dead.append(ws)
+        for ws in dead:
+            clients.pop(ws, None)
+        await asyncio.sleep(TICK_SECONDS)
+
+
+@contextlib.asynccontextmanager
+async def lifespan(app: FastAPI):
+    task = asyncio.create_task(_tick_loop())
+    audit("system.start", fleet=len(sim.ships))
+    yield
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+
+
+app = FastAPI(title="Seafarers Emergency Support Network (simulation)", lifespan=lifespan)
+
+
+class InjectRequest(BaseModel):
+    mmsi: str
+    fault: str
+    source: str = "control-panel"
+
+
+class ReportRequest(BaseModel):
+    mmsi: str
+    text: str
+
+
+class ApprovalRequest(BaseModel):
+    operator: str
+
+
+def _open_incident(mmsi: str, text: str, telemetry: Telemetry,
+                   fault_label: str | None, source: str) -> Incident:
+    ship = sim.ships[mmsi]
+    result, trace = triage.run(text, telemetry)
+    incident = Incident(
+        id=uuid.uuid4().hex[:8], mmsi=mmsi, vessel_name=ship.name,
+        opened_at=_now(), report_text=text, telemetry=telemetry,
+        triage=result, injected_fault=fault_label)
+    responders = response.nearest(list(sim.ships.values()), ship)
+    incident.packets = response.build_packets(incident, ship, responders)
+    incidents[incident.id] = incident
+    audit("incident.opened", incident=incident.id, mmsi=mmsi, source=source,
+          injected_fault=fault_label, report_text=text,
+          telemetry=telemetry.model_dump(by_alias=True),
+          triage=result.model_dump(mode="json"), trace=trace,
+          packets_drafted=len(incident.packets))
+    return incident
+
+
+async def _announce(incident: Incident) -> None:
+    payload = {"type": "incident", "incident": incident.model_dump(mode="json")}
+    for ws in list(clients):
+        with contextlib.suppress(Exception):
+            await ws.send_json(payload)
+
+
+# ---- incident lifecycle ---------------------------------------------------
+
+@app.post("/api/inject")
+async def inject(req: InjectRequest):
+    """Control panel: stage a fault. Mutates telemetry, not just a label."""
+    if req.mmsi not in sim.ships:
+        raise HTTPException(404, "unknown vessel")
+    if req.fault not in FAULTS:
+        raise HTTPException(400, f"unknown fault: {req.fault}")
+    ship, fault, beacon = sim.inject(req.mmsi, req.fault)
+    # A beacon with no accompanying report is the hard case: triage sees only the
+    # beacon's own telemetry, which is exactly what a shore watch gets.
+    telemetry = beacon.telemetry() if (beacon and not fault.text) else ship.telemetry()
+    incident = _open_incident(req.mmsi, fault.text, telemetry, fault.label, req.source)
+    await _announce(incident)
+    return incident
+
+
+@app.post("/api/report")
+async def manual_report(req: ReportRequest):
+    """Seafarer portal and ops manual intake: free text as actually received."""
+    if req.mmsi not in sim.ships:
+        raise HTTPException(404, "unknown vessel")
+    if not req.text.strip():
+        raise HTTPException(400, "a report cannot be empty")
+    ship = sim.ships[req.mmsi]
+    ship.distressed = True
+    incident = _open_incident(req.mmsi, req.text.strip(), ship.telemetry(), None, "vessel-report")
+    await _announce(incident)
+    return incident
+
+
+@app.post("/api/incidents/{incident_id}/packets/{index}/{decision}")
+async def decide(incident_id: str, index: int, decision: str, req: ApprovalRequest):
+    """The approval gate. The only thing that can mark a packet approved, and it
+    requires a named approver."""
+    if decision not in ("approve", "reject"):
+        raise HTTPException(400, "decision must be approve or reject")
+    incident = incidents.get(incident_id)
+    if not incident:
+        raise HTTPException(404, "unknown incident")
+    if not 0 <= index < len(incident.packets):
+        raise HTTPException(404, "unknown packet")
+    if not req.operator.strip():
+        raise HTTPException(400, "an approver identity is required")
+    packet = incident.packets[index]
+    if packet.approved or packet.rejected:
+        raise HTTPException(409, "packet has already been decided")
+    packet.approved = decision == "approve"
+    packet.rejected = decision == "reject"
+    audit(f"packet.{decision}d", incident=incident_id, index=index,
+          recipient_class=packet.recipient_class, recipient=packet.recipient_name,
+          operator=req.operator.strip(), subject=packet.subject)
+    await _announce(incident)
+    return packet
+
+
+@app.post("/api/clear/{mmsi}")
+async def clear(mmsi: str):
+    if mmsi not in sim.ships:
+        raise HTTPException(404, "unknown vessel")
+    sim.clear(mmsi)
+    audit("vessel.cleared", mmsi=mmsi)
+    return {"ok": True}
+
+
+# ---- reads ----------------------------------------------------------------
+
+@app.get("/api/faults")
+async def fault_catalogue():
+    return [{"key": k, "label": f.label, "silent": not f.text,
+             "beacon": f.beacon_prefix} for k, f in FAULTS.items()]
+
+
+@app.get("/api/kinds")
+async def kinds():
+    return KINDS
+
+
+@app.get("/api/stats")
+async def stats():
+    return {**sim.stats(), "incidents": len(incidents),
+            "pendingPackets": sum(1 for i in incidents.values()
+                                  for p in i.packets if not (p.approved or p.rejected)),
+            "llmProviders": [{"name": p.name, "keyed": bool(p.key),
+                              "available": p.available} for p in providers.CHAIN]}
+
+
+@app.get("/api/search")
+async def search(q: str, limit: int = 20):
+    """Name or MMSI prefix. A linear scan over 60k strings is a few milliseconds
+    and an index would be a lie about how often this is called."""
+    ql = q.strip().lower()
+    if len(ql) < 2:
+        return []
+    hits = [_ship_detail(s) for s in sim.ships.values()
+            if ql in s.name.lower() or s.mmsi.startswith(ql)]
+    hits.sort(key=lambda h: (not h["distressed"], h["name"]))
+    return hits[:limit]
+
+
+@app.get("/api/vessel/{mmsi}")
+async def vessel(mmsi: str):
+    s = sim.ships.get(mmsi)
+    if not s:
+        raise HTTPException(404, "unknown vessel")
+    return _ship_detail(s)
+
+
+@app.get("/api/vessel/{mmsi}/situation")
+async def situation(mmsi: str):
+    """The seafarer view, and the thing current systems do worst: once a ship has
+    declared distress, the crew usually cannot see whether anyone ashore has picked
+    it up, what was concluded, or who is coming. This returns exactly that."""
+    s = sim.ships.get(mmsi)
+    if not s:
+        raise HTTPException(404, "unknown vessel")
+    mine = [i for i in incidents.values() if i.mmsi == mmsi]
+    mine.sort(key=lambda i: i.opened_at, reverse=True)
+    nearby = response.nearest(list(sim.ships.values()), s, limit=6)
+    latest = mine[0] if mine else None
+    return {
+        "vessel": _ship_detail(s),
+        "incident": latest.model_dump(mode="json") if latest else None,
+        "nearby": nearby,
+        "shoreStatus": _shore_status(latest),
+        "history": [{"id": i.id, "opened_at": i.opened_at,
+                     "type": i.triage.type.value if i.triage else "-"} for i in mine[1:]],
+    }
+
+
+def _shore_status(incident: Incident | None) -> dict:
+    """Plain-language answer to the only question that matters on the bridge:
+    has anyone ashore actually done anything yet?"""
+    if not incident:
+        return {"state": "no_incident",
+                "text": "No active incident. Telemetry is being monitored ashore."}
+    approved = [p for p in incident.packets if p.approved]
+    pending = [p for p in incident.packets if not (p.approved or p.rejected)]
+    if approved:
+        return {"state": "notified",
+                "text": f"{len(approved)} of {len(incident.packets)} notifications "
+                        f"approved and released by a shore operator.",
+                "released": [p.recipient_name for p in approved]}
+    if pending:
+        return {"state": "awaiting_approval",
+                "text": f"Shore has received your alert and classified it as "
+                        f"{incident.triage.type.value}. "
+                        f"{len(pending)} notifications are drafted and awaiting "
+                        f"operator approval. Nothing has been released yet."}
+    return {"state": "rejected",
+            "text": "Shore reviewed the drafted notifications and released none of "
+                    "them. Contact the operations room directly."}
+
+
+@app.get("/api/incidents")
+async def list_incidents():
+    return [i.model_dump(mode="json") for i in
+            sorted(incidents.values(), key=lambda i: i.opened_at, reverse=True)]
+
+
+@app.get("/api/audit")
+async def audit_tail(limit: int = 200):
+    if not AUDIT_PATH.exists():
+        return []
+    return [json.loads(x) for x in AUDIT_PATH.read_text().strip().splitlines()[-limit:]]
+
+
+# ---- simulator control (control panel only) -------------------------------
+
+@app.post("/api/sim/{action}")
+async def sim_control(action: str):
+    if action not in ("pause", "resume"):
+        raise HTTPException(400, "action must be pause or resume")
+    sim.paused = action == "pause"
+    audit(f"sim.{action}d")
+    return sim.stats()
+
+
+# ---- websocket ------------------------------------------------------------
+
+@app.websocket("/ws")
+async def ws(websocket: WebSocket):
+    await websocket.accept()
+    clients[websocket] = {"bounds": None, "cap": 2500}
+    try:
+        while True:
+            msg = json.loads(await websocket.receive_text())
+            if "bounds" in msg:
+                clients[websocket]["bounds"] = msg["bounds"]
+            if "cap" in msg:
+                clients[websocket]["cap"] = max(100, min(6000, int(msg["cap"])))
+    except (WebSocketDisconnect, json.JSONDecodeError):
+        pass
+    finally:
+        clients.pop(websocket, None)
+
+
+# ---- portals --------------------------------------------------------------
+
+@app.get("/")
+async def home():
+    return FileResponse(WEB_DIR / "index.html")
+
+
+@app.get("/ops")
+async def ops():
+    return FileResponse(WEB_DIR / "ops.html")
+
+
+@app.get("/control")
+async def control():
+    return FileResponse(WEB_DIR / "control.html")
+
+
+@app.get("/vessel")
+async def vessel_portal():
+    return FileResponse(WEB_DIR / "vessel.html")
+
+
+app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")

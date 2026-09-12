@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SESN Control Panel</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  :root { --accent: #fbbf24; --accent-ink: #241a00; }
+  .brand .mark { background: linear-gradient(140deg, #fbbf24, #fb5570); }
+  .faultgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .fault {
+    border: 1px solid var(--line); background: var(--surface-2); color: var(--ink);
+    border-radius: var(--r-sm); padding: 10px 11px; cursor: pointer; text-align: left;
+    font: 600 12.5px var(--sans); transition: .12s;
+  }
+  .fault:hover:not(:disabled) { border-color: var(--warn); background: rgba(251,191,36,.09); }
+  .fault:disabled { opacity: .35; cursor: not-allowed; }
+  .fault small { display: block; font-weight: 400; font-size: 10.5px; color: var(--faint); margin-top: 2px; }
+  .prov { display: flex; justify-content: space-between; align-items: center;
+          padding: 8px 11px; border: 1px solid var(--line); border-radius: var(--r-sm);
+          margin-bottom: 6px; background: var(--surface-2); font-size: 12.5px; }
+</style></head>
+<body>
+<div class="shell">
+  <div class="simbar">
+    <span>⚙</span><b>CONTROL PANEL / FAULT INJECTION</b>
+    <span class="note">This screen stages synthetic emergencies. It exists because every
+    incident in this system is fabricated on purpose. Nothing here observes a real vessel.</span>
+    <span class="spacer"></span>
+    <span id="link"><span class="dot off"></span> connecting</span>
+  </div>
+
+  <div class="topbar">
+    <div class="brand"><div class="mark">S</div><div>SESN<small>Control</small></div></div>
+    <nav class="navlinks">
+      <a href="/vessel">Seafarer</a><a href="/ops">Operations</a><a href="/control" class="on">Control</a>
+    </nav>
+    <div style="flex:1"></div>
+    <button class="btn sm" id="pause">Pause simulator</button>
+  </div>
+
+  <div class="body">
+    <div class="rail left">
+      <div class="scroll">
+        <p class="eyebrow">Fleet</p>
+        <div class="stats" id="stats"></div>
+
+        <p class="eyebrow" style="margin-top:22px">Target vessel</p>
+        <input id="q" placeholder="Search 60,000 vessels by name or MMSI…" autocomplete="off">
+        <div id="hits"></div>
+        <div id="target"></div>
+
+        <p class="eyebrow" style="margin-top:22px">Inject emergency</p>
+        <p class="muted" style="margin:0 0 10px">Each fault mutates the vessel's
+        <strong>telemetry</strong>, not a label. A grounding sets nav status 6 and stops
+        the ship; the detector then has to earn its classification from the feed, exactly
+        as it would against a real AIS stream.</p>
+        <div class="faultgrid" id="faults"></div>
+
+        <p class="eyebrow" style="margin-top:22px">LLM provider chain</p>
+        <div id="providers"></div>
+        <p class="muted" style="margin:8px 0 0">With no key configured the triage agent
+        falls back to the deterministic baseline classifier, so this never goes dark.</p>
+      </div>
+    </div>
+
+    <div class="mapwrap">
+      <div id="map" style="position:absolute;inset:0"></div>
+      <div class="overlay mapstats">
+        <span class="mono" id="shown">-</span> <span class="muted">rendered ·</span>
+        <span class="mono" id="inview">-</span> <span class="muted">in view</span>
+      </div>
+    </div>
+
+    <div class="rail">
+      <div class="scroll">
+        <p class="eyebrow">Active casualties</p>
+        <div id="active"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+const { $, $$, esc, num, position, NAV } = SESN;
+let target = null, faults = [], paused = false;
+
+const map = SESN.map("map", { center: [30, 20], zoom: 1.4 });
+map.on("load", () => {
+  map.on("moveend", () => link.setBounds(SESN.boundsOf(map)));
+  map.on("click", "ships", e => pick(e.features[0].properties.m));
+  map.on("mouseenter", "ships", () => map.getCanvas().style.cursor = "crosshair");
+  map.on("mouseleave", "ships", () => map.getCanvas().style.cursor = "");
+});
+
+const link = SESN.connect({
+  onFrame: f => {
+    if (map.getSource("fleet")) map.getSource("fleet").setData(SESN.rowsToGeoJSON(f.rows));
+    $("#shown").textContent = num(f.rows.length);
+    $("#inview").textContent = num(f.inView);
+    renderStats(f.stats);
+    renderActive(f.distressed);
+  },
+  onState: up => $("#link").innerHTML =
+    `<span class="dot ${up ? "live" : "off"}"></span> ${up ? "live" : "reconnecting"}`,
+});
+
+function renderStats(s) {
+  paused = s.paused;
+  $("#pause").textContent = paused ? "Resume simulator" : "Pause simulator";
+  $("#stats").innerHTML = `
+    <div class="stat"><div class="n">${num(s.fleet)}</div><div class="l">hulls simulated</div></div>
+    <div class="stat"><div class="n">${num(s.under_way)}</div><div class="l">under way</div></div>
+    <div class="stat"><div class="n">${num(s.moored_or_anchored)}</div><div class="l">anchored / moored</div></div>
+    <div class="stat danger"><div class="n">${s.distressed}</div><div class="l">in distress</div></div>
+    <div class="stat warn"><div class="n">${s.dark}</div><div class="l">AIS dark</div></div>`;
+}
+
+function renderActive(list) {
+  $("#active").innerHTML = list.length ? list.map(v => `
+    <div class="card alert">
+      <div class="split"><strong>${esc(v.name)}</strong>
+        <button class="btn ghost sm" onclick="clearShip('${v.mmsi}')">stand down</button></div>
+      <div class="muted mono" style="font-size:11.5px;margin:3px 0 6px">${v.mmsi} ·
+        ${v.speed} kn · ${NAV[v.navStatus] || v.navStatus}${v.dark ? " · AIS DARK" : ""}</div>
+      <span class="pill sev-4">${esc(v.fault || "vessel report")}</span>
+      <div class="muted" style="margin-top:7px;font-size:11.5px">${position(v.lat, v.lon)}</div>
+    </div>`).join("")
+    : `<div class="empty"><div class="big">⚙</div><p>No active casualties.<br>
+       <span class="muted">Pick a vessel and inject a fault.</span></p></div>`;
+}
+
+/* ---- target selection ---- */
+let timer;
+$("#q").oninput = e => {
+  clearTimeout(timer);
+  timer = setTimeout(async () => {
+    const q = e.target.value.trim();
+    if (q.length < 2) return $("#hits").innerHTML = "";
+    const hits = await SESN.api("/api/search?q=" + encodeURIComponent(q));
+    $("#hits").innerHTML = hits.map(v => `<div class="card click" onclick="pick('${v.mmsi}')">
+      <strong>${esc(v.name)}</strong>
+      <div class="muted mono" style="font-size:11.5px">${v.mmsi} · ${v.kind} · ${esc(v.flag)}</div>
+      </div>`).join("") || `<p class="muted">No vessel matches.</p>`;
+  }, 200);
+};
+
+window.pick = async mmsi => {
+  target = await SESN.api("/api/vessel/" + mmsi);
+  $("#hits").innerHTML = ""; $("#q").value = "";
+  $("#target").innerHTML = `<div class="card">
+    <div class="split"><strong>${esc(target.name)}</strong>
+      ${target.distressed ? '<span class="pill sev-4">already in distress</span>' : ""}</div>
+    <div class="muted" style="margin:2px 0 7px">${esc(target.operator || target.kind)} · ${esc(target.flag)}</div>
+    <dl class="kv">
+      <dt>MMSI</dt><dd>${target.mmsi}</dd>
+      <dt>Position</dt><dd>${position(target.lat, target.lon)}</dd>
+      <dt>Course / speed</dt><dd>${target.course}° · ${target.speed} kn</dd>
+      <dt>Nav status</dt><dd>${NAV[target.navStatus] || target.navStatus}</dd>
+      <dt>Persons aboard</dt><dd>${target.pob}</dd>
+      <dt>Lane</dt><dd>${esc(target.corridor || "-")}</dd>
+    </dl></div>`;
+  map.flyTo({ center: [target.lon, target.lat], zoom: 7 });
+  renderFaults();
+};
+
+function renderFaults() {
+  $("#faults").innerHTML = faults.map(f => `
+    <button class="fault" ${target ? "" : "disabled"} onclick="inject('${f.key}')">
+      ${esc(f.label)}
+      <small>${f.silent ? "telemetry only, no voice report" : "with voice report"}${
+        f.beacon ? ` · spawns ${f.beacon} beacon` : ""}</small>
+    </button>`).join("");
+}
+
+window.inject = async key => {
+  if (!target) return;
+  $$(".fault").forEach(b => b.disabled = true);
+  try {
+    const inc = await SESN.post("/api/inject", { mmsi: target.mmsi, fault: key });
+    $("#target").insertAdjacentHTML("afterend",
+      `<div class="card" style="border-color:var(--ok)">
+        <strong style="color:var(--ok)">Incident ${inc.id} opened</strong>
+        <div class="muted" style="margin-top:3px">Triaged as <strong>${inc.triage.type}</strong>,
+        severity ${inc.triage.severity}, ${inc.packets.length} packets drafted and pending
+        approval. <a class="plain" href="/ops">Open in operations →</a></div></div>`);
+    target = await SESN.api("/api/vessel/" + target.mmsi);
+  } catch (e) { alert(e.message); }
+  renderFaults();
+};
+
+window.clearShip = async mmsi => {
+  await SESN.post("/api/clear/" + mmsi);
+  if (target?.mmsi === mmsi) target = await SESN.api("/api/vessel/" + mmsi);
+};
+
+$("#pause").onclick = async () => {
+  await SESN.post("/api/sim/" + (paused ? "resume" : "pause"));
+};
+
+SESN.api("/api/faults").then(f => { faults = f; renderFaults(); });
+SESN.api("/api/stats").then(s => {
+  $("#providers").innerHTML = s.llmProviders.map(p => `
+    <div class="prov"><span>${esc(p.name)}</span>
+      <span class="pill ${p.available ? "approved" : p.keyed ? "pending" : "ghost"}">
+        ${p.available ? "available" : p.keyed ? "cooling down" : "no key"}</span></div>`).join("");
+});
+</script>
+</body></html>

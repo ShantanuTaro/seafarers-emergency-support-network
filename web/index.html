@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seafarers Emergency Support Network</title>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  .hero { max-width: 1060px; margin: 0 auto; padding: 56px 24px 40px; }
+  .hero h1 { font-size: 40px; letter-spacing: -.035em; line-height: 1.1; margin-bottom: 14px; }
+  .hero h1 span { background: linear-gradient(100deg, var(--accent), var(--violet));
+                  -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .lede { font-size: 17px; color: var(--dim); max-width: 640px; line-height: 1.65; }
+  .roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+           gap: 16px; margin-top: 40px; }
+  .role { display: block; text-decoration: none; color: inherit; padding: 24px;
+          border: 1px solid var(--line); border-radius: 16px; background: var(--surface);
+          transition: .15s; }
+  .role:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
+  .role .ic { width: 42px; height: 42px; border-radius: 12px; display: grid;
+              place-items: center; font-size: 20px; margin-bottom: 14px; }
+  .role h2 { font-size: 18px; margin-bottom: 6px; }
+  .role p { margin: 0; color: var(--dim); font-size: 13.5px; line-height: 1.6; }
+  .role ul { margin: 12px 0 0; padding-left: 17px; color: var(--faint); font-size: 12.5px; }
+  .role .go { margin-top: 15px; font-size: 12.5px; font-weight: 600; color: var(--accent); }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+           gap: 12px; margin-top: 44px; }
+  footer { max-width: 1060px; margin: 0 auto; padding: 28px 24px 60px;
+           color: var(--faint); font-size: 12.5px; border-top: 1px solid var(--line); }
+</style></head>
+<body>
+<div class="simbar">
+  <span>⚠</span><b>SIMULATION</b>
+  <span class="note">Every vessel, position and incident in this system is synthetic.
+  Not connected to GMDSS, Cospas-Sarsat, or any real distress network.</span>
+</div>
+
+<div class="topbar">
+  <div class="brand"><div class="mark">S</div>
+    <div>SESN<small>Seafarers Emergency Support Network</small></div></div>
+</div>
+
+<div class="hero">
+  <h1>Distress coordination,<br><span>from alert to approved action.</span></h1>
+  <p class="lede">A vessel goes quiet, runs aground, or calls for help. SESN classifies
+  what happened, names the rescue authority legally responsible for that water, finds
+  the nearest hull that can actually reach them, and drafts a different message for
+  every party who needs one, then stops and waits for a human to approve each one.</p>
+
+  <div class="roles">
+    <a class="role" href="/vessel">
+      <div class="ic" style="background:rgba(52,211,153,.14);color:var(--ok)">⚓</div>
+      <h2>Seafarer portal</h2>
+      <p>For masters and crew. Declare distress in one action, with position, POB and
+      telemetry already attached, then actually see what shore is doing about it.</p>
+      <ul>
+        <li>One-touch distress declaration</li>
+        <li>Live shore status: seen, classified, released</li>
+        <li>Who is nearest and when they arrive</li>
+      </ul>
+      <div class="go">Open bridge view →</div>
+    </a>
+
+    <a class="role" href="/ops">
+      <div class="ic" style="background:rgba(56,189,248,.14);color:var(--accent)">◎</div>
+      <h2>Operations portal</h2>
+      <p>For the shore watch. World traffic picture, incident queue, triage reasoning,
+      and the approval gate that every outbound message has to pass through.</p>
+      <ul>
+        <li>Live world fleet at scale</li>
+        <li>Triage: type, severity, confidence, unknowns</li>
+        <li>Per-recipient drafts and approvals</li>
+      </ul>
+      <div class="go">Open operations →</div>
+    </a>
+
+    <a class="role" href="/control">
+      <div class="ic" style="background:rgba(251,191,36,.14);color:var(--warn)">⚙</div>
+      <h2>Control panel</h2>
+      <p>For engineers and demos. Inject faults into any vessel in the fleet, watch the
+      telemetry change, and confirm the detector earns its classification.</p>
+      <ul>
+        <li>12 injectable emergencies</li>
+        <li>Simulator pause and fleet statistics</li>
+        <li>LLM provider and circuit-breaker state</li>
+      </ul>
+      <div class="go">Open control panel →</div>
+    </a>
+  </div>
+
+  <div class="facts" id="facts"></div>
+</div>
+
+<footer>
+  <strong style="color:var(--dim)">Supplementary to GMDSS, never a replacement.</strong>
+  Distress alerting must be made via GMDSS. This system is decision support only: it
+  drafts, it ranks, it explains, and it will not transmit anything without a named
+  human approving that specific message.
+</footer>
+
+<script src="/static/common.js"></script>
+<script>
+SESN.api("/api/stats").then(s => {
+  SESN.$("#facts").innerHTML = [
+    ["fleet", SESN.num(s.fleet), "vessels simulated"],
+    ["under_way", SESN.num(s.under_way), "under way now"],
+    ["incidents", s.incidents, "incidents raised"],
+    ["providers", s.llmProviders.filter(p => p.keyed).length + "/3", "LLM providers keyed"],
+  ].map(([, n, l]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+});
+</script>
+</body></html>

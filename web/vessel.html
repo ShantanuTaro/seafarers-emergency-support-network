@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SESN Bridge</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  .resp { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+          padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-sm);
+          background: var(--surface-2); margin-bottom: 7px; }
+  .resp .d { font-family: var(--mono); font-size: 13px; font-weight: 600; text-align: right; }
+  .resp .d small { display: block; font-weight: 400; font-size: 11px; color: var(--dim); }
+  .step { display: flex; gap: 11px; align-items: flex-start; margin-bottom: 13px; }
+  .step .n { width: 23px; height: 23px; flex: none; border-radius: 50%; display: grid;
+             place-items: center; font-size: 11px; font-weight: 700;
+             background: var(--surface-3); color: var(--faint); }
+  .step.done .n { background: var(--ok); color: #04241a; }
+  .step.now .n { background: var(--warn); color: #241a00; }
+  .step .t { font-size: 13.5px; font-weight: 600; }
+  .step .s { font-size: 12px; color: var(--dim); }
+</style></head>
+<body data-portal="bridge">
+<div class="shell">
+  <div class="simbar">
+    <span>⚠</span><b>SIMULATION</b>
+    <span class="note">This is a demonstration bridge terminal. Real distress alerting
+    must be made via GMDSS (DSC, EPIRB, or Inmarsat). This system does not replace it.</span>
+    <span class="spacer"></span>
+    <span id="link"><span class="dot off"></span> connecting</span>
+  </div>
+
+  <div class="topbar">
+    <div class="brand"><div class="mark">S</div><div>SESN<small>Bridge terminal</small></div></div>
+    <nav class="navlinks">
+      <a href="/vessel" class="on">Seafarer</a><a href="/ops">Operations</a><a href="/control">Control</a>
+    </nav>
+    <div style="flex:1"></div>
+    <input id="q" placeholder="Sign in to a vessel: search name or MMSI" style="width:330px" autocomplete="off">
+  </div>
+
+  <div class="body">
+    <div class="rail left" style="width:520px">
+      <div class="scroll" id="left">
+        <div class="empty"><div class="big">⚓</div>
+          <p>Search for your vessel above to sign in.<br>
+          <span class="muted">In service this terminal is bound to one hull; here you pick one.</span></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mapwrap">
+      <div id="map" style="position:absolute;inset:0"></div>
+    </div>
+
+    <div class="rail">
+      <div class="scroll" id="right"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+const { $, $$, esc, num, position, SEV, NAV } = SESN;
+let me = null, faults = [], poll;
+
+const map = SESN.map("map", { center: [20, 20], zoom: 2 });
+map.on("load", () => map.on("moveend", () => link.setBounds(SESN.boundsOf(map))));
+
+const link = SESN.connect({
+  onFrame: f => {
+    if (map.getSource("fleet")) map.getSource("fleet").setData(SESN.rowsToGeoJSON(f.rows));
+  },
+  onIncident: inc => { if (me && inc.mmsi === me) refresh(); },
+  onState: up => $("#link").innerHTML =
+    `<span class="dot ${up ? "live" : "off"}"></span> ${up ? "connected to shore" : "reconnecting"}`,
+});
+
+/* ---- sign in ---- */
+let timer;
+$("#q").oninput = e => {
+  clearTimeout(timer);
+  timer = setTimeout(async () => {
+    const q = e.target.value.trim();
+    if (q.length < 2) return $("#left").innerHTML = "";
+    const hits = await SESN.api("/api/search?q=" + encodeURIComponent(q));
+    $("#left").innerHTML = hits.map(v => `<div class="card click" onclick="signIn('${v.mmsi}')">
+      <strong>${esc(v.name)}</strong>
+      <div class="muted mono" style="font-size:12px">${v.mmsi} · ${v.kind} · ${esc(v.flag)} ·
+      ${v.pob} POB</div></div>`).join("") || `<p class="muted">No vessel matches.</p>`;
+  }, 200);
+};
+
+window.signIn = mmsi => {
+  me = mmsi; localStorage.setItem("sesn.vessel", mmsi);
+  $("#q").value = ""; refresh();
+  clearInterval(poll); poll = setInterval(refresh, 4000);
+};
+
+/* ---- the bridge view ---- */
+async function refresh() {
+  if (!me) return;
+  const s = await SESN.api(`/api/vessel/${me}/situation`);
+  const v = s.vessel, inc = s.incident, st = s.shoreStatus;
+  map.flyTo({ center: [v.lon, v.lat], zoom: Math.max(map.getZoom(), 6), duration: 800 });
+
+  const tone = { no_incident: "calm", awaiting_approval: "wait",
+                 notified: "calm", rejected: "alarm" }[st.state] || "wait";
+  const head = { no_incident: "All normal", awaiting_approval: "Shore has your alert",
+                 notified: "Assistance notified", rejected: "Nothing released" }[st.state];
+
+  $("#left").innerHTML = `
+    <div class="bigstate ${tone}">
+      <div class="state">${v.name} · ${v.mmsi}</div>
+      <div class="head">${head}</div>
+      <div class="muted" style="font-size:14px;color:var(--ink)">${esc(st.text)}</div>
+      ${st.released ? `<div class="muted" style="margin-top:9px">Released to:
+        ${st.released.map(r => esc(r)).join(", ")}</div>` : ""}
+    </div>
+
+    <div class="card">
+      <dl class="kv">
+        <dt>Position</dt><dd>${position(v.lat, v.lon)}</dd>
+        <dt>Course / speed</dt><dd>${v.course}° · ${v.speed} kn</dd>
+        <dt>Nav status</dt><dd>${NAV[v.navStatus] || v.navStatus}</dd>
+        <dt>Persons aboard</dt><dd>${v.pob}</dd>
+        <dt>Flag</dt><dd>${esc(v.flag)}</dd>
+        <dt>Bound for</dt><dd>${esc(v.destination || "-")}</dd>
+      </dl>
+    </div>
+
+    ${inc ? incidentBlock(inc, st) : ""}
+
+    <p class="eyebrow" style="margin-top:20px">Declare distress</p>
+    <p class="muted" style="margin:0 0 11px">One action sends your position, persons aboard
+    and telemetry with the alert. You do not have to type anything.</p>
+    <div class="distress-grid">
+      ${faults.filter(f => !f.silent).map(f => `
+        <button class="distress-btn" onclick="declare('${f.key}')">${esc(f.label)}
+          <small>${f.beacon ? "activates " + f.beacon + " beacon" : "position + POB attached"}</small>
+        </button>`).join("")}
+    </div>
+
+    <p class="eyebrow" style="margin-top:20px">Or report in your own words</p>
+    <textarea id="free" rows="4" placeholder="Describe what is happening…"></textarea>
+    <button class="btn" style="margin-top:9px" onclick="freeReport()">Send report to shore</button>`;
+
+  $("#right").innerHTML = `
+    <p class="eyebrow">Nearest assistance</p>
+    <p class="muted" style="margin:0 0 11px">Ranked by distance, with dedicated search and
+    rescue assets weighted ahead of merchant traffic at comparable range.</p>
+    ${s.nearby.length ? s.nearby.map(r => `
+      <div class="resp">
+        <div><strong>${esc(r.name)}</strong>
+          <div class="muted" style="font-size:11.5px">${r.kind}${r.sar_capable ? " · SAR capable" : ""}</div></div>
+        <div class="d">${r.distance_nm} nm
+          <small>${r.eta_hours ? r.eta_hours + " h" : "not under way"}</small></div>
+      </div>`).join("") : `<p class="muted">No traffic within range.</p>`}
+    ${s.history.length ? `<p class="eyebrow" style="margin-top:22px">Earlier incidents</p>` +
+      s.history.map(h => `<div class="card"><strong>${h.type}</strong>
+        <div class="muted mono" style="font-size:11.5px">${h.opened_at.slice(0,19).replace("T"," ")}Z</div>
+      </div>`).join("") : ""}`;
+}
+
+function incidentBlock(inc, st) {
+  const t = inc.triage;
+  const decided = inc.packets.filter(p => p.approved || p.rejected).length;
+  const steps = [
+    ["Alert received ashore", "Your telemetry and report reached the operations room.", true, false],
+    ["Classified", `Assessed as ${t.type}, severity ${SEV[t.severity]}, confidence ${t.confidence.toFixed(2)}.`, true, false],
+    ["Notifications drafted", `${inc.packets.length} messages prepared for the rescue authority, nearby vessels and your company.`, true, false],
+    ["Operator approval", st.state === "notified"
+      ? `${decided} of ${inc.packets.length} decided and released.`
+      : "A named shore operator must approve each message before it is released.",
+      st.state === "notified", st.state === "awaiting_approval"],
+  ];
+  return `
+    <p class="eyebrow" style="margin-top:20px">Your active incident</p>
+    <div class="card">
+      <div class="split"><strong style="color:var(--accent);font-size:16px">${t.type}</strong>
+        <span class="pill sev-${t.severity}">${SEV[t.severity]}</span></div>
+      <div class="muted" style="margin:5px 0 13px">${esc(t.rationale)}</div>
+      ${steps.map(([title, sub, done, now], i) => `
+        <div class="step ${done ? "done" : now ? "now" : ""}">
+          <div class="n">${done ? "✓" : i + 1}</div>
+          <div><div class="t">${title}</div><div class="s">${esc(sub)}</div></div>
+        </div>`).join("")}
+      ${t.unknowns.length ? `<div style="border-top:1px solid var(--line);padding-top:11px;margin-top:4px">
+        <div class="eyebrow" style="margin-bottom:5px">Shore still needs to know</div>
+        <ul class="muted" style="margin:0;padding-left:18px">${
+          t.unknowns.map(u => `<li>${esc(u)}</li>`).join("")}</ul>
+        <div class="muted" style="margin-top:7px;font-size:11.5px">Sending any of this by
+        free-text report below will sharpen the response.</div></div>` : ""}
+    </div>`;
+}
+
+window.declare = async key => {
+  const f = faults.find(x => x.key === key);
+  if (!confirm(`Declare "${f.label}" to shore?\n\nYour position, course, speed and persons `
+             + `aboard will be attached automatically.\n\nThis does not replace a GMDSS `
+             + `distress alert.`)) return;
+  $$(".distress-btn").forEach(b => b.disabled = true);
+  try { await SESN.post("/api/inject", { mmsi: me, fault: key, source: "bridge-terminal" }); }
+  catch (e) { alert(e.message); }
+  refresh();
+};
+
+window.freeReport = async () => {
+  const text = $("#free").value.trim();
+  if (!text) return;
+  try { await SESN.post("/api/report", { mmsi: me, text }); } catch (e) { alert(e.message); }
+  refresh();
+};
+
+SESN.api("/api/faults").then(f => {
+  faults = f;
+  const saved = localStorage.getItem("sesn.vessel");
+  if (saved) signIn(saved);
+});
+</script>
+</body></html>

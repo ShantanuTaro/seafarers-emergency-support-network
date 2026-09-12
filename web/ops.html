@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SESN Operations</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<link rel="stylesheet" href="/static/common.css">
+<style>
+  .tabs { display: flex; border-bottom: 1px solid var(--line); flex: none; }
+  .tabs button { flex: 1; background: none; border: 0; border-bottom: 2px solid transparent;
+    color: var(--dim); padding: 11px 8px; font: 600 12.5px var(--sans); cursor: pointer; }
+  .tabs button.on { color: var(--ink); border-bottom-color: var(--accent); background: var(--surface-2); }
+  .tabs .count { font-family: var(--mono); font-size: 11px; color: var(--warn); }
+  .pane { display: none; } .pane.on { display: block; }
+  .opsbar { display: flex; gap: 10px; align-items: center; padding: 10px 16px;
+            border-bottom: 1px solid var(--line); background: var(--surface); flex: none; }
+  .opsbar input { width: 220px; }
+</style></head>
+<body>
+<div class="shell">
+  <div class="simbar">
+    <span>⚠</span><b>SIMULATED TRAFFIC, NOT A LIVE FEED</b>
+    <span class="note">Supplementary to GMDSS, never a replacement. Nothing transmits without approval.</span>
+    <span class="spacer"></span>
+    <span id="link"><span class="dot off"></span> connecting</span>
+  </div>
+
+  <div class="topbar">
+    <div class="brand"><div class="mark">S</div><div>SESN<small>Operations</small></div></div>
+    <nav class="navlinks">
+      <a href="/vessel">Seafarer</a><a href="/ops" class="on">Operations</a><a href="/control">Control</a>
+    </nav>
+    <div style="flex:1"></div>
+    <input id="operator" placeholder="Operator name, required to approve" style="width:280px">
+  </div>
+
+  <div class="body">
+    <div class="mapwrap">
+      <div id="map" style="position:absolute;inset:0"></div>
+      <div class="overlay mapstats">
+        <span class="mono" id="shown">-</span> <span class="muted">rendered of</span>
+        <span class="mono" id="inview">-</span> <span class="muted">in view ·</span>
+        <span class="mono" id="fleet">-</span> <span class="muted">fleet</span>
+      </div>
+      <div class="overlay legend">
+        <div style="font-weight:700;font-size:10px;letter-spacing:.1em;color:var(--faint)">LEGEND</div>
+        <div class="item"><span class="dot" style="background:#fb5570"></span> in distress</div>
+        <div class="item"><span class="dot" style="background:#fbbf24"></span> AIS dark</div>
+        <div class="item"><span class="dot" style="background:#34d399"></span> SAR capable</div>
+        <div class="item"><span class="dot" style="background:#38bdf8"></span> container</div>
+        <div class="item"><span class="dot" style="background:#5b8fc7"></span> other merchant</div>
+      </div>
+    </div>
+
+    <div class="rail">
+      <div class="tabs">
+        <button class="on" data-t="queue">Queue <span class="count" id="qn"></span></button>
+        <button data-t="intake">Intake</button>
+        <button data-t="audit">Audit</button>
+      </div>
+      <div class="scroll">
+        <div class="pane on" id="p-queue"></div>
+
+        <div class="pane" id="p-intake">
+          <p class="eyebrow">Manual intake</p>
+          <p class="muted">A report received by radio, sat phone or email. Type it as it
+          came in. The triage agent reads the words, not a form.</p>
+          <label>Vessel</label>
+          <input id="q" placeholder="Search by name or MMSI…" autocomplete="off">
+          <div id="hits"></div>
+          <div id="picked"></div>
+          <label>Report as received</label>
+          <textarea id="text" rows="6" placeholder="Master reports…"></textarea>
+          <div class="row" style="margin-top:10px">
+            <button class="btn primary" id="raise" disabled>Raise incident</button>
+          </div>
+        </div>
+
+        <div class="pane" id="p-audit"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/common.js"></script>
+<script>
+const { $, $$, esc, num, position, SEV, NAV } = SESN;
+let incidents = [], open = null, picked = null, distressed = [];
+
+const map = SESN.map("map", { center: [40, 22], zoom: 1.5 });
+
+map.on("load", () => {
+  map.on("moveend", pushView);
+  map.on("click", "ships", async e => {
+    const mmsi = e.features[0].properties.m;
+    const v = await SESN.api("/api/vessel/" + mmsi);
+    new maplibregl.Popup({ maxWidth: "320px" }).setLngLat(e.lngLat).setHTML(`
+      <div style="font-weight:700;font-size:14px">${esc(v.name)}</div>
+      <div class="muted" style="margin-bottom:8px">${esc(v.operator || v.kind)} · ${esc(v.flag)}</div>
+      <dl class="kv">
+        <dt>MMSI</dt><dd>${v.mmsi}</dd>
+        <dt>Position</dt><dd>${position(v.lat, v.lon)}</dd>
+        <dt>Course / speed</dt><dd>${v.course}° · ${v.speed} kn</dd>
+        <dt>Nav status</dt><dd>${NAV[v.navStatus] || v.navStatus}</dd>
+        <dt>Persons aboard</dt><dd>${v.pob}</dd>
+        <dt>Bound for</dt><dd>${esc(v.destination || "-")}</dd>
+      </dl>
+      ${v.fault ? `<div class="pill sev-4" style="margin-top:9px">${esc(v.fault)}</div>` : ""}`)
+      .addTo(map);
+  });
+  map.on("mouseenter", "ships", () => map.getCanvas().style.cursor = "pointer");
+  map.on("mouseleave", "ships", () => map.getCanvas().style.cursor = "");
+});
+
+const link = SESN.connect({
+  onFrame: f => {
+    if (map.getSource("fleet")) map.getSource("fleet").setData(SESN.rowsToGeoJSON(f.rows));
+    $("#shown").textContent = num(f.rows.length);
+    $("#inview").textContent = num(f.inView);
+    $("#fleet").textContent = num(f.stats.fleet);
+    distressed = f.distressed;
+  },
+  onIncident: () => loadQueue(),
+  onState: up => $("#link").innerHTML =
+    `<span class="dot ${up ? "live" : "off"}"></span> ${up ? "live" : "reconnecting"}`,
+});
+const pushView = () => link.setBounds(SESN.boundsOf(map));
+
+/* ---- tabs ---- */
+$$(".tabs button").forEach(b => b.onclick = () => {
+  $$(".tabs button").forEach(x => x.classList.toggle("on", x === b));
+  $$(".pane").forEach(p => p.classList.toggle("on", p.id === "p-" + b.dataset.t));
+  if (b.dataset.t === "audit") loadAudit();
+});
+
+/* ---- incident queue ---- */
+async function loadQueue() {
+  incidents = await SESN.api("/api/incidents");
+  const pending = incidents.reduce((n, i) =>
+    n + i.packets.filter(p => !p.approved && !p.rejected).length, 0);
+  $("#qn").textContent = pending ? `${pending} pending` : "";
+  if (open) {
+    const inc = incidents.find(i => i.id === open);
+    if (inc) return renderIncident(inc);
+  }
+  $("#p-queue").innerHTML = incidents.length ? incidents.map(card).join("")
+    : `<div class="empty"><div class="big">◎</div><p>No incidents.<br>
+       <span class="muted">Inject one from the control panel, or raise one from Intake.</span></p></div>`;
+}
+
+const card = i => {
+  const t = i.triage, pend = i.packets.filter(p => !p.approved && !p.rejected).length;
+  return `<div class="card click ${t.severity >= 3 ? "alert" : ""}" onclick="openInc('${i.id}')">
+    <div class="split">
+      <strong>${esc(i.vessel_name)}</strong>
+      <span class="pill sev-${t.severity}">${SEV[t.severity]}</span>
+    </div>
+    <div style="margin:5px 0 3px"><strong style="color:var(--accent)">${t.type}</strong>
+      <span class="muted">· confidence ${t.confidence.toFixed(2)} · ${t.provider}</span></div>
+    <div class="muted mono" style="font-size:11.5px">${i.mmsi} · ${i.opened_at.slice(11,19)}Z
+      ${pend ? `· <span style="color:var(--warn)">${pend} pending approval</span>` : "· all decided"}</div>
+  </div>`;
+};
+
+window.openInc = id => { open = id; loadQueue(); };
+window.back = () => { open = null; loadQueue(); };
+
+function renderIncident(i) {
+  const t = i.triage;
+  $("#p-queue").innerHTML = `
+    <button class="btn ghost sm" onclick="back()">← queue</button>
+    <div style="margin:14px 0 10px">
+      <div class="split"><h1 style="margin:0">${esc(i.vessel_name)}</h1>
+        <span class="pill sev-${t.severity}">${SEV[t.severity]}</span></div>
+      <div style="font-size:17px;font-weight:700;color:var(--accent);margin-top:3px">${t.type}</div>
+    </div>
+    <div class="card">
+      <dl class="kv">
+        <dt>MMSI</dt><dd>${i.mmsi}</dd>
+        <dt>Position</dt><dd>${position(i.telemetry.lat, i.telemetry.lon)}</dd>
+        <dt>Speed / nav</dt><dd>${i.telemetry.speedKn} kn · ${NAV[i.telemetry.navStatus] || i.telemetry.navStatus}</dd>
+        <dt>Confidence</dt><dd>${t.confidence.toFixed(2)}</dd>
+        <dt>Classifier</dt><dd>${t.provider} · ${t.latency_ms} ms</dd>
+        <dt>Opened</dt><dd>${i.opened_at.slice(11,19)}Z</dd>
+        <dt>Staged fault</dt><dd>${esc(i.injected_fault || "vessel report")}</dd>
+      </dl>
+    </div>
+    <p class="eyebrow">Basis for this classification</p>
+    <p class="muted" style="margin:0 0 14px">${esc(t.rationale) || "-"}</p>
+    <p class="eyebrow">Declared unknowns</p>
+    ${t.unknowns.length
+      ? `<ul class="muted" style="margin:0 0 14px;padding-left:18px">${
+          t.unknowns.map(u => `<li>${esc(u)}</li>`).join("")}</ul>`
+      : `<p class="muted" style="margin:0 0 14px">None declared.</p>`}
+    ${i.report_text ? `<p class="eyebrow">Report as received</p><pre>${esc(i.report_text)}</pre>` : ""}
+    <p class="eyebrow" style="margin-top:18px">Response packets, approval required</p>
+    <p class="muted" style="margin:0 0 12px">Nothing below has been sent, and nothing will be
+    sent until it carries your name.</p>
+    ${i.packets.map((p, n) => packet(i.id, p, n)).join("")}`;
+}
+
+const packet = (id, p, n) => `
+  <div class="packet">
+    <header>
+      <div><div class="cls">${p.recipient_class.replace("_", " ")}</div>
+        <div class="to">${esc(p.recipient_name)}</div></div>
+      <span class="pill ${p.approved ? "approved" : p.rejected ? "rejected" : "pending"}">
+        ${p.approved ? "approved" : p.rejected ? "rejected" : "pending"}</span>
+    </header>
+    <div class="inner">
+      <div style="font-weight:600;margin-bottom:4px">${esc(p.subject)}</div>
+      <pre>${esc(p.body)}</pre>
+      ${p.approved || p.rejected ? "" : `<div class="row">
+        <button class="btn primary" onclick="decide('${id}',${n},'approve')">Approve &amp; release</button>
+        <button class="btn danger" onclick="decide('${id}',${n},'reject')">Reject</button></div>`}
+    </div>
+  </div>`;
+
+window.decide = async (id, n, d) => {
+  const operator = $("#operator").value.trim();
+  if (!operator) {
+    alert("Enter your name in the top bar first. Every approval is recorded against a person.");
+    $("#operator").focus(); return;
+  }
+  try { await SESN.post(`/api/incidents/${id}/packets/${n}/${d}`, { operator }); }
+  catch (e) { alert(e.message); }
+  loadQueue();
+};
+
+/* ---- intake ---- */
+let timer;
+$("#q").oninput = e => {
+  clearTimeout(timer);
+  timer = setTimeout(async () => {
+    const q = e.target.value.trim();
+    if (q.length < 2) return $("#hits").innerHTML = "";
+    const hits = await SESN.api("/api/search?q=" + encodeURIComponent(q));
+    $("#hits").innerHTML = hits.map(v => `<div class="card click" onclick="pick('${v.mmsi}')">
+      <strong>${esc(v.name)}</strong> ${v.distressed ? '<span class="pill sev-4">distress</span>' : ""}
+      <div class="muted mono" style="font-size:11.5px">${v.mmsi} · ${v.kind} · ${esc(v.flag)}</div></div>`).join("")
+      || `<p class="muted">No vessel matches.</p>`;
+  }, 200);
+};
+window.pick = async mmsi => {
+  picked = await SESN.api("/api/vessel/" + mmsi);
+  $("#hits").innerHTML = ""; $("#q").value = picked.name;
+  $("#picked").innerHTML = `<div class="card"><strong>${esc(picked.name)}</strong>
+    <dl class="kv" style="margin-top:6px">
+      <dt>MMSI</dt><dd>${picked.mmsi}</dd>
+      <dt>Position</dt><dd>${position(picked.lat, picked.lon)}</dd>
+      <dt>POB</dt><dd>${picked.pob}</dd></dl></div>`;
+  $("#raise").disabled = false;
+  map.flyTo({ center: [picked.lon, picked.lat], zoom: 6 });
+};
+$("#raise").onclick = async () => {
+  const text = $("#text").value.trim();
+  if (!picked || !text) return;
+  $("#raise").disabled = true;
+  try { await SESN.post("/api/report", { mmsi: picked.mmsi, text }); $("#text").value = ""; }
+  catch (e) { alert(e.message); }
+  $("#raise").disabled = false;
+  $$(".tabs button")[0].click(); loadQueue();
+};
+
+/* ---- audit ---- */
+async function loadAudit() {
+  const rows = await SESN.api("/api/audit");
+  $("#p-audit").innerHTML = `<p class="eyebrow">Append-only audit log</p>
+    <p class="muted" style="margin:0 0 12px">Assume every line becomes evidence in a marine
+    board inquiry. Nothing here is ever rewritten or removed.</p>` +
+    (rows.length ? rows.slice().reverse().map(r =>
+      `<pre style="max-height:none">${esc(JSON.stringify(r, null, 1))}</pre>`).join("")
+      : `<p class="muted">Nothing logged yet.</p>`);
+}
+
+loadQueue();
+</script>
+</body></html>

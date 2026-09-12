@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      # Invariants that would otherwise fail silently: SAR coverage, simulator
+      # determinism, faults actually moving telemetry, packets born unapproved.
+      - name: Invariant checks
+        run: python test_sesn.py
+
+      # The ratchet. Fails if a change makes incident triage measurably worse.
+      - name: Triage eval
+        run: python -m evals.run --gate --out eval-results.md
+
+      - name: Publish eval table to the run summary
+        if: always()
+        run: cat eval-results.md >> "$GITHUB_STEP_SUMMARY"
+
+      # The portal is three static pages and no build step, so a syntax error in
+      # them reaches production unless something parses them here.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Portal syntax check
+        run: |
+          python - <<'PY'
+          import pathlib, re
+          for page in pathlib.Path("web").glob("*.html"):
+              for i, block in enumerate(re.findall(r"<script>(.*?)</script>",
+                                                   page.read_text(), re.S)):
+                  pathlib.Path(f"/tmp/{page.stem}{i}.js").write_text(block)
+          PY
+          for f in /tmp/*.js; do node --check "$f"; done
+          node --check web/common.js
+
+      # The app has to actually boot and serve all three portals.
+      - name: Smoke test
+        run: |
+          python -m uvicorn sesn.main:app --port 8077 &
+          for i in $(seq 40); do curl -sf localhost:8077/api/stats >/dev/null && break; sleep 1; done
+          for route in / /ops /control /vessel /api/stats /api/faults; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "localhost:8077$route")
+            echo "$route -> $code"
+            [ "$code" = "200" ] || exit 1
+          done
+          mmsi=$(curl -s 'localhost:8077/api/search?q=marslev' | python -c 'import sys,json;print(json.load(sys.stdin)[0]["mmsi"])')
+          curl -sf -X POST localhost:8077/api/inject -H 'Content-Type: application/json' \
+            -d "{\"mmsi\":\"$mmsi\",\"fault\":\"grounding\"}" | python -c '
+          import sys, json
+          inc = json.load(sys.stdin)
+          assert inc["triage"]["type"] == "Grounding", inc["triage"]
+          assert inc["packets"], "no packets drafted"
+          assert not any(p["approved"] for p in inc["packets"]), "a packet was born approved"
+          print("incident", inc["id"], "triaged and gated correctly")'

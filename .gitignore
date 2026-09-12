@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+audit.jsonl
+evals/results.md
+eval-results.md
+.DS_Store

@@ -1,0 +1,222 @@
+[
+  {
+    "id": "piracy-01",
+    "source": "vhf-transcript",
+    "text": "Two skiffs closing from the port quarter at approximately 22 knots, six persons visible in each, one carrying a ladder. We have increased to full sea speed and are commencing evasive steering. Crew mustering at the citadel.",
+    "telemetry": { "mmsi": "636019284", "lat": 12.94, "lon": 46.11, "speedKn": 17.8, "navStatus": 0 },
+    "expected": { "type": "Piracy", "severity": "Critical" }
+  },
+  {
+    "id": "piracy-02",
+    "source": "email-manager",
+    "text": "Master reports that during the night four men came aboard at the anchorage via the hawse pipe. They were carrying knives. Ship's stores and paint were taken from the forecastle store. No crew injured, no access to accommodation. Local authorities attended at first light.",
+    "telemetry": { "mmsi": "538007741", "lat": 6.35, "lon": 3.31, "speedKn": 0.1, "navStatus": 1 },
+    "expected": { "type": "Piracy", "severity": "Moderate" }
+  },
+  {
+    "id": "piracy-03",
+    "source": "satphone-note",
+    "text": "Single small craft shadowed us for about forty minutes at a range of roughly one mile, then broke off to the north. No weapons observed, no attempt to close. Reporting for awareness.",
+    "telemetry": { "mmsi": "371882140", "lat": 3.88, "lon": 51.42, "speedKn": 14.2, "navStatus": 0 },
+    "expected": { "type": "Piracy", "severity": "Low" }
+  },
+
+  {
+    "id": "attack-01",
+    "source": "vhf-transcript",
+    "text": "We have taken an impact on the port side above the waterline, believed to be an aerial drone. There is fire in the accommodation block, two decks affected. Three crew with burns. Position as transmitted, requesting immediate assistance.",
+    "telemetry": { "mmsi": "636044117", "lat": 14.62, "lon": 42.08, "speedKn": 9.4, "navStatus": 0 },
+    "expected": { "type": "Attack", "severity": "Critical" }
+  },
+  {
+    "id": "attack-02",
+    "source": "email-manager",
+    "text": "Two projectiles entered the water approximately 200 metres astern within a one minute interval. No impact, no damage, no injuries. Vessel has altered course to the south and increased speed.",
+    "telemetry": { "mmsi": "477229063", "lat": 13.05, "lon": 43.77, "speedKn": 16.1, "navStatus": 0 },
+    "expected": { "type": "Attack", "severity": "Moderate" }
+  },
+  {
+    "id": "attack-03",
+    "source": "vhf-transcript",
+    "text": "A small unmanned craft ran into our hull at the waterline on the starboard side abreast the engine room. There is now water coming in and the bilge alarms are sounding. Main engine still running.",
+    "telemetry": { "mmsi": "636071905", "lat": 15.18, "lon": 41.36, "speedKn": 6.2, "navStatus": 0 },
+    "expected": { "type": "Attack", "severity": "Critical" }
+  },
+
+  {
+    "id": "fire-01",
+    "source": "vhf-transcript",
+    "text": "Fire in the main engine room. Space has been evacuated and sealed, CO2 has been released, boundary cooling in progress. All twenty crew accounted for at the muster station. Vessel without propulsion.",
+    "telemetry": { "mmsi": "538091226", "lat": 36.42, "lon": 14.88, "speedKn": 0.4, "navStatus": 2 },
+    "expected": { "type": "Fire", "severity": "High" }
+  },
+  {
+    "id": "fire-02",
+    "source": "email-manager",
+    "text": "Small fire in the galley from a deep fat fryer during the evening meal. Extinguished within two minutes using a portable extinguisher. No injuries, no structural damage, no activation of fixed systems. Reported for the record.",
+    "telemetry": { "mmsi": "371440338", "lat": 25.10, "lon": -80.02, "speedKn": 15.0, "navStatus": 0 },
+    "expected": { "type": "Fire", "severity": "Low" }
+  },
+  {
+    "id": "fire-03",
+    "source": "satphone-note",
+    "text": "Temperature in cargo hold three is climbing and there is smoke coming from the hold ventilators. The stow includes containers declared as lithium ion cells. We cannot enter the space. Requesting advice urgently.",
+    "telemetry": { "mmsi": "636112884", "lat": 1.24, "lon": 104.01, "speedKn": 11.7, "navStatus": 0 },
+    "expected": { "type": "Fire", "severity": "Critical" }
+  },
+
+  {
+    "id": "flood-01",
+    "source": "vhf-transcript",
+    "text": "We have water ingress in the forepeak store. List is four degrees to starboard and steady. Both ballast pumps running and holding the level. No injuries. Proceeding at reduced speed toward shelter.",
+    "telemetry": { "mmsi": "477061550", "lat": 54.21, "lon": 6.44, "speedKn": 7.1, "navStatus": 0 },
+    "expected": { "type": "Flooding", "severity": "High" }
+  },
+  {
+    "id": "flood-02",
+    "source": "vhf-transcript",
+    "text": "Breach in the hull below the waterline after contact with a submerged object. Pumps cannot keep up with the rate of ingress. List has increased from three to eleven degrees in twenty minutes. Twenty-two persons on board. Preparing to abandon if it continues.",
+    "telemetry": { "mmsi": "538033472", "lat": -33.90, "lon": 18.12, "speedKn": 2.0, "navStatus": 0 },
+    "expected": { "type": "Flooding", "severity": "Critical" }
+  },
+
+  {
+    "id": "collision-01",
+    "source": "vhf-transcript",
+    "text": "We have struck a fishing vessel in fog. Damage to our bow above the waterline, no ingress on our side. The other vessel is going down by the stern. We have launched the rescue boat and are recovering persons from the water.",
+    "telemetry": { "mmsi": "371765012", "lat": 38.44, "lon": 128.90, "speedKn": 1.2, "navStatus": 0 },
+    "expected": { "type": "Collision", "severity": "Critical" }
+  },
+  {
+    "id": "collision-02",
+    "source": "email-manager",
+    "text": "During berthing the vessel made heavier than intended contact with the quay fendering. Scrape and minor indent to the shell plating at frame 84, above waterline. No ingress, no injuries, port authority informed. Class to attend next drydock.",
+    "telemetry": { "mmsi": "636028810", "lat": 51.94, "lon": 4.14, "speedKn": 0.0, "navStatus": 5 },
+    "expected": { "type": "Collision", "severity": "Low" }
+  },
+
+  {
+    "id": "ground-01",
+    "source": "ais-only",
+    "text": "",
+    "telemetry": { "mmsi": "538014963", "lat": 24.55, "lon": 54.32, "speedKn": 0.0, "navStatus": 6 },
+    "expected": { "type": "Grounding", "severity": "High" }
+  },
+  {
+    "id": "ground-02",
+    "source": "email-manager",
+    "text": "Vessel touched the bottom while departing the channel on a falling tide. Refloated under own power ninety minutes later on the rising tide. Soundings of all tanks taken, no ingress, no pollution. Voyage resumed.",
+    "telemetry": { "mmsi": "477338204", "lat": 30.05, "lon": 31.24, "speedKn": 6.8, "navStatus": 0 },
+    "expected": { "type": "Grounding", "severity": "Moderate" }
+  },
+  {
+    "id": "ground-03",
+    "source": "vhf-transcript",
+    "text": "We are hard on a reef, the vessel is not moving. Engine room is flooded to the plates and we have lost the main generator. Eighteen persons on board, no injuries so far. We need assistance.",
+    "telemetry": { "mmsi": "636099231", "lat": -17.51, "lon": 177.44, "speedKn": 0.0, "navStatus": 6 },
+    "expected": { "type": "Grounding", "severity": "Critical" }
+  },
+
+  {
+    "id": "mach-01",
+    "source": "vhf-transcript",
+    "text": "Main engine has shut down and cannot be restarted. We are not under command and setting toward the traffic separation scheme. Wind is thirty-five knots on the beam, sea state six. Requesting a tug.",
+    "telemetry": { "mmsi": "371209887", "lat": 36.01, "lon": -5.58, "speedKn": 1.9, "navStatus": 2 },
+    "expected": { "type": "MachineryFailure", "severity": "High" }
+  },
+  {
+    "id": "mach-02",
+    "source": "email-manager",
+    "text": "Total loss of electrical power for approximately twenty minutes following a generator trip. Emergency generator started on demand. Power restored, main engine restarted, passage resumed at full speed. No injuries, no damage.",
+    "telemetry": { "mmsi": "538072149", "lat": 12.02, "lon": 66.71, "speedKn": 14.9, "navStatus": 0 },
+    "expected": { "type": "MachineryFailure", "severity": "Low" }
+  },
+  {
+    "id": "mach-03",
+    "source": "vhf-transcript",
+    "text": "Steering gear has failed, rudder is jammed to port and the vessel is turning in circles. Main engine stopped to hold position. We are in the approach channel with traffic around us. Tugs requested urgently.",
+    "telemetry": { "mmsi": "477115730", "lat": 31.23, "lon": 121.49, "speedKn": 3.4, "navStatus": 2 },
+    "expected": { "type": "MachineryFailure", "severity": "High" }
+  },
+
+  {
+    "id": "medevac-01",
+    "source": "satphone-note",
+    "text": "Chief engineer, male, fifty-four, has severe central chest pain radiating to the left arm, cold and sweating, no cardiac history. Given aspirin and oxygen. We are one hundred and eighty miles offshore. Requesting medical advice and evacuation.",
+    "telemetry": { "mmsi": "636055018", "lat": 42.11, "lon": -62.30, "speedKn": 13.2, "navStatus": 0 },
+    "expected": { "type": "MedicalEvacuation", "severity": "High" }
+  },
+  {
+    "id": "medevac-02",
+    "source": "vhf-transcript",
+    "text": "An able seaman fell from the second platform in the engine room. Suspected open fracture of the right femur, heavy bleeding now controlled with a tourniquet, patient conscious and responsive. We are not equipped to manage this on board.",
+    "telemetry": { "mmsi": "538028866", "lat": 59.02, "lon": 4.88, "speedKn": 10.1, "navStatus": 0 },
+    "expected": { "type": "MedicalEvacuation", "severity": "High" }
+  },
+  {
+    "id": "medevac-03",
+    "source": "email-manager",
+    "text": "Second cook has right lower abdominal pain with fever since yesterday, suspected appendicitis. Patient is stable and on antibiotics from the ship's medical locker. Vessel is six hours from the next port of call and will land him there.",
+    "telemetry": { "mmsi": "371550394", "lat": 22.31, "lon": 114.18, "speedKn": 15.5, "navStatus": 0 },
+    "expected": { "type": "MedicalEvacuation", "severity": "Moderate" }
+  },
+
+  {
+    "id": "mob-01",
+    "source": "ais-only",
+    "text": "",
+    "telemetry": { "mmsi": "972183044", "lat": 40.88, "lon": -9.12, "speedKn": 0.9, "navStatus": 15 },
+    "expected": { "type": "ManOverboard", "severity": "Critical" }
+  },
+  {
+    "id": "mob-02",
+    "source": "vhf-transcript",
+    "text": "A crew member went over the side from the main deck during mooring stations. Lifebuoy with light released immediately, Williamson turn commenced, all hands to lookout stations. Person was still visible two minutes ago.",
+    "telemetry": { "mmsi": "636088452", "lat": 33.71, "lon": -118.19, "speedKn": 4.6, "navStatus": 0 },
+    "expected": { "type": "ManOverboard", "severity": "Critical" }
+  },
+  {
+    "id": "mob-03",
+    "source": "email-manager",
+    "text": "An oiler did not attend the 0400 muster and has not been seen since he finished his watch at 2200. A full search of all accessible spaces including tanks and voids has been completed twice with a negative result. His personal effects are in his cabin.",
+    "telemetry": { "mmsi": "538044901", "lat": -12.40, "lon": 88.55, "speedKn": 12.8, "navStatus": 0 },
+    "expected": { "type": "ManOverboard", "severity": "High" }
+  },
+
+  {
+    "id": "abandon-01",
+    "source": "vhf-transcript",
+    "text": "The master has given the order to abandon. Two liferafts are in the water on the starboard side and the free-fall boat has been launched. Twenty-one persons on board, all accounted for at the rafts. EPIRB is activated.",
+    "telemetry": { "mmsi": "371334760", "lat": 7.88, "lon": -14.02, "speedKn": 0.2, "navStatus": 15 },
+    "expected": { "type": "CrewAbandonment", "severity": "Critical" }
+  },
+  {
+    "id": "abandon-02",
+    "source": "ais-only",
+    "text": "",
+    "telemetry": { "mmsi": "974220518", "lat": 19.44, "lon": -66.80, "speedKn": 0.0, "navStatus": 15 },
+    "expected": { "type": "Unknown", "severity": "Critical" }
+  },
+
+  {
+    "id": "unknown-01",
+    "source": "ais-only",
+    "text": "AIS-SART detected on watch. No voice contact established on channel 16 after three attempts.",
+    "telemetry": { "mmsi": "970411287", "lat": 48.20, "lon": -12.75, "speedKn": 0.6, "navStatus": 15 },
+    "expected": { "type": "Unknown", "severity": "Critical" }
+  },
+  {
+    "id": "unknown-02",
+    "source": "operator-note",
+    "text": "No AIS position from this vessel for four hours in an area with good terrestrial coverage. She is now overdue at the pilot station. No answer on VHF or on either satellite number. Last report was routine.",
+    "telemetry": { "mmsi": "477902164", "lat": 4.02, "lon": 98.71, "speedKn": 0.0, "navStatus": 0 },
+    "expected": { "type": "Unknown", "severity": "High" }
+  },
+  {
+    "id": "unknown-03",
+    "source": "satphone-note",
+    "text": "Master called the duty line and said only that there is a situation on board and that he needs the company to call him back on the bridge. He rang off before any detail was given. Call back has not been answered.",
+    "telemetry": { "mmsi": "636103377", "lat": 26.55, "lon": 56.44, "speedKn": 9.8, "navStatus": 0 },
+    "expected": { "type": "Unknown", "severity": "Moderate" }
+  }
+]
