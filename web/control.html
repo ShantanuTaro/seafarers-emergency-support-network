@@ -97,7 +97,7 @@ map.on("load", () => {
 
 const link = SESN.connect({
   onFrame: f => {
-    if (map.getSource("fleet")) map.getSource("fleet").setData(SESN.rowsToGeoJSON(f.rows));
+    if (map.getSource("fleet")) map.getSource("fleet").setData(SESN.frameToGeoJSON(f));
     $("#shown").textContent = num(f.rows.length);
     $("#inview").textContent = num(f.inView);
     renderStats(f.stats);
@@ -126,7 +126,8 @@ function renderActive(list) {
       <div class="muted mono" style="font-size:11.5px;margin:3px 0 6px">${v.mmsi} ·
         ${v.speed} kn · ${NAV[v.navStatus] || v.navStatus}${v.dark ? " · AIS DARK" : ""}</div>
       <span class="pill sev-4">${esc(v.fault || "vessel report")}</span>
-      <div class="muted" style="margin-top:7px;font-size:11.5px">${position(v.lat, v.lon)}</div>
+      <div class="muted" style="margin-top:7px;font-size:11.5px">${position(v.lat, v.lon)} ·
+        ${esc(v.kind)} · ${esc(v.cargo || "cargo not declared")}</div>
     </div>`).join("")
     : `<div class="empty"><div class="big">⚙</div><p>No active casualties.<br>
        <span class="muted">Pick a vessel and inject a fault.</span></p></div>`;
@@ -160,6 +161,8 @@ window.pick = async mmsi => {
       <dt>Course / speed</dt><dd>${target.course}° · ${target.speed} kn</dd>
       <dt>Nav status</dt><dd>${NAV[target.navStatus] || target.navStatus}</dd>
       <dt>Persons aboard</dt><dd>${target.pob}</dd>
+      <dt>Type / cargo</dt><dd style="font-family:var(--sans);font-size:12.5px">${esc(target.kind)} ·
+        ${esc(target.cargo || "not declared")}</dd>
       <dt>Lane</dt><dd>${esc(target.corridor || "-")}</dd>
     </dl></div>`;
   map.flyTo({ center: [target.lon, target.lat], zoom: 7 });
@@ -187,7 +190,7 @@ window.inject = async key => {
         severity ${inc.triage.severity}, ${inc.packets.length} packets drafted and pending
         approval. <a class="plain" href="/ops">Open in operations →</a></div></div>`);
     target = await SESN.api("/api/vessel/" + target.mmsi);
-  } catch (e) { alert(e.message); }
+  } catch (e) { await SESN.say("Injection refused", e.message); }
   renderFaults();
 };
 
@@ -203,9 +206,14 @@ $("#pause").onclick = async () => {
 SESN.api("/api/faults").then(f => { faults = f; renderFaults(); });
 SESN.api("/api/stats").then(s => {
   $("#providers").innerHTML = s.llmProviders.map(p => `
-    <div class="prov"><span>${esc(p.name)}</span>
+    <div class="prov">
+      <span>${esc(p.name)}
+        <div class="muted mono" style="font-size:10.5px">${esc(p.model)}</div></span>
       <span class="pill ${p.available ? "approved" : p.keyed ? "pending" : "ghost"}">
-        ${p.available ? "available" : p.keyed ? "cooling down" : "no key"}</span></div>`).join("");
+        ${p.available ? "available" : p.keyed ? "cooling down" : "no key"}</span></div>`).join("")
+    + `<p class="muted" style="margin:7px 0 0;font-size:11px">Tried top to bottom. One
+       without a key is skipped, not waited on. Override a model in <code>.env</code>
+       with GEMINI_MODEL, MISTRAL_MODEL or GROQ_MODEL.</p>`;
 });
 </script>
 </body></html>

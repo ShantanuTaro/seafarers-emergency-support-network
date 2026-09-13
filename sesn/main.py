@@ -31,15 +31,19 @@ from pydantic import BaseModel
 
 from . import providers, response, triage
 from .models import Incident, Telemetry
-from .sim import FAULTS, KINDS, Ship, Simulator
+from .sim import FAULTS, KINDS, Ship, Simulator, haversine_nm
 
-TICK_SECONDS = 1.0
+TICK_SECONDS = 5.0
 ROOT = Path(__file__).resolve().parent.parent
 WEB_DIR = ROOT / "web"
 AUDIT_PATH = ROOT / "audit.jsonl"
 
 sim = Simulator()
 incidents: dict[str, Incident] = {}
+# Direct operator <-> bridge traffic, per vessel. Not a packet and not gated: a
+# message here is composed and sent by a named human, which is what the gate exists
+# to guarantee for the generated ones. Logged either way.
+messages: dict[str, list[dict]] = {}
 clients: dict[WebSocket, dict] = {}  # ws -> {"bounds": [...], "cap": int}
 
 
@@ -59,7 +63,7 @@ def _ship_detail(s: Ship) -> dict:
         "mmsi": s.mmsi, "name": s.name, "operator": s.operator, "kind": s.kind,
         "flag": s.flag, "pob": s.pob, "lat": round(s.lat, 4), "lon": round(s.lon, 4),
         "course": round(s.course), "speed": round(s.speed_kn, 1),
-        "navStatus": s.nav_status, "corridor": s.corridor,
+        "navStatus": s.nav_status, "corridor": s.corridor, "cargo": s.cargo,
         "destination": s.destination, "distressed": s.distressed,
         "dark": s.ais_dark, "fault": s.injected_fault,
         "sarCapable": s.can_assist,
@@ -100,6 +104,17 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Seafarers Emergency Support Network (simulation)", lifespan=lifespan)
 
 
+@app.middleware("http")
+async def no_stale_assets(request, call_next):
+    """The portals are static files with no build step and no content hashing, so a
+    browser holding yesterday's common.js against today's ops.html gets a map with
+    no ships on it and no error anyone will see. Revalidate everything: this is a
+    single-process demo on localhost, not a CDN."""
+    resp = await call_next(request)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 class InjectRequest(BaseModel):
     mmsi: str
     fault: str
@@ -115,6 +130,12 @@ class ApprovalRequest(BaseModel):
     operator: str
 
 
+class MessageRequest(BaseModel):
+    text: str
+    author: str = ""
+    frm: str = "vessel"  # "vessel" from the bridge, "shore" from the ops console
+
+
 def _open_incident(mmsi: str, text: str, telemetry: Telemetry,
                    fault_label: str | None, source: str) -> Incident:
     ship = sim.ships[mmsi]
@@ -123,13 +144,23 @@ def _open_incident(mmsi: str, text: str, telemetry: Telemetry,
         id=uuid.uuid4().hex[:8], mmsi=mmsi, vessel_name=ship.name,
         opened_at=_now(), report_text=text, telemetry=telemetry,
         triage=result, injected_fault=fault_label)
-    responders = response.nearest(list(sim.ships.values()), ship)
+    fleet = list(sim.ships.values())
+    responders = response.nearest(fleet, ship, limit=8)
+    # `nearest` weights dedicated SAR assets ahead of merchant traffic, so in a busy
+    # lane the whole ranked list can be tugs and coastguard and the duty-to-assist
+    # draft ends up addressed to the same tug that was already tasked. Carry one
+    # nearest merchant alongside, so the two drafts reach two different bridges.
+    responders += response.nearest([v for v in fleet if not v.can_assist], ship, limit=1)
+    region, mrcc = response.sar_region(ship.lat, ship.lon)
+    incident.responders = responders
+    incident.recommendation = response.recommend(result, responders, mrcc, region)
     incident.packets = response.build_packets(incident, ship, responders)
     incidents[incident.id] = incident
     audit("incident.opened", incident=incident.id, mmsi=mmsi, source=source,
           injected_fault=fault_label, report_text=text,
           telemetry=telemetry.model_dump(by_alias=True),
           triage=result.model_dump(mode="json"), trace=trace,
+          recommendation=[a.text for a in incident.recommendation],
           packets_drafted=len(incident.packets))
     return incident
 
@@ -191,11 +222,51 @@ async def decide(incident_id: str, index: int, decision: str, req: ApprovalReque
         raise HTTPException(409, "packet has already been decided")
     packet.approved = decision == "approve"
     packet.rejected = decision == "reject"
+    packet.decided_by = req.operator.strip()
+    packet.decided_at = _now()
     audit(f"packet.{decision}d", incident=incident_id, index=index,
           recipient_class=packet.recipient_class, recipient=packet.recipient_name,
           operator=req.operator.strip(), subject=packet.subject)
     await _announce(incident)
     return packet
+
+
+@app.post("/api/vessel/{mmsi}/message")
+async def send_message(mmsi: str, req: MessageRequest):
+    """A line of text between the shore watch and the bridge, both directions.
+
+    Shore-side messages carry the operator's name for the same reason approvals do:
+    the log has to say who said it. Nothing here is a GMDSS distress relay and the
+    portals say so.
+    """
+    if mmsi not in sim.ships:
+        raise HTTPException(404, "unknown vessel")
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(400, "a message cannot be empty")
+    if req.frm not in ("vessel", "shore"):
+        raise HTTPException(400, "frm must be vessel or shore")
+    author = req.author.strip()
+    if req.frm == "shore" and not author:
+        raise HTTPException(400, "a shore message requires the operator's name")
+    msg = {"ts": _now(), "frm": req.frm,
+           "author": author or sim.ships[mmsi].name, "text": text}
+    thread = messages.setdefault(mmsi, [])
+    thread.append(msg)
+    del thread[:-200]  # a bridge terminal is not an archive
+    audit("message.sent", mmsi=mmsi, frm=req.frm, author=msg["author"], text=text)
+    payload = {"type": "message", "mmsi": mmsi, "message": msg}
+    for ws in list(clients):
+        with contextlib.suppress(Exception):
+            await ws.send_json(payload)
+    return msg
+
+
+@app.get("/api/vessel/{mmsi}/messages")
+async def read_messages(mmsi: str):
+    if mmsi not in sim.ships:
+        raise HTTPException(404, "unknown vessel")
+    return messages.get(mmsi, [])
 
 
 @app.post("/api/clear/{mmsi}")
@@ -225,8 +296,9 @@ async def stats():
     return {**sim.stats(), "incidents": len(incidents),
             "pendingPackets": sum(1 for i in incidents.values()
                                   for p in i.packets if not (p.approved or p.rejected)),
-            "llmProviders": [{"name": p.name, "keyed": bool(p.key),
-                              "available": p.available} for p in providers.CHAIN]}
+            "llmProviders": [{"name": p.name, "model": p.model_name,
+                              "keyed": bool(p.key), "available": p.available}
+                             for p in providers.CHAIN]}
 
 
 @app.get("/api/search")
@@ -264,12 +336,48 @@ async def situation(mmsi: str):
     latest = mine[0] if mine else None
     return {
         "vessel": _ship_detail(s),
-        "incident": latest.model_dump(mode="json") if latest else None,
         "nearby": nearby,
         "shoreStatus": _shore_status(latest),
-        "history": [{"id": i.id, "opened_at": i.opened_at,
-                     "type": i.triage.type.value if i.triage else "-"} for i in mine[1:]],
+        "messages": messages.get(mmsi, []),
+        # Every incident this hull has raised, newest first, each carrying its own
+        # shore status and per-recipient state. One array rather than a "latest" plus a
+        # thinner "history": the bridge opens any of them and expects the same detail,
+        # and a crew reading a three-hour-old incident deserves the same answer as one
+        # reading the live one.
+        "incidents": [{**i.model_dump(mode="json"),
+                       "actions": _actions(i, s),
+                       "shoreStatus": _shore_status(i)} for i in mine],
     }
+
+
+def _actions(incident: Incident | None, casualty: Ship | None) -> list[dict]:
+    """Per-recipient state of every drafted message, for the bridge.
+
+    The crew asked shore for help; what they need back is who was asked, whether it
+    was actually released, and when that ship will arrive. The ETA is recomputed
+    from live positions on every read rather than quoted from the draft, because a
+    responder's ETA at the moment of drafting is already wrong.
+    """
+    if not incident or not casualty:
+        return []
+    out = []
+    for p in incident.packets:
+        row = {
+            "recipient_class": p.recipient_class,
+            "recipient_name": p.recipient_name,
+            "state": "released" if p.approved else "declined" if p.rejected else "pending",
+            "decided_by": p.decided_by, "decided_at": p.decided_at,
+            "distance_nm": None, "eta_hours": None, "kind": None,
+        }
+        responder = sim.ships.get(p.recipient_mmsi or "")
+        if responder:
+            nm = haversine_nm(casualty.lat, casualty.lon, responder.lat, responder.lon)
+            row["kind"] = responder.kind
+            row["distance_nm"] = round(nm, 1)
+            row["eta_hours"] = (round(nm / responder.speed_kn, 1)
+                                if responder.speed_kn > 0.5 else None)
+        out.append(row)
+    return out
 
 
 def _shore_status(incident: Incident | None) -> dict:
@@ -281,9 +389,13 @@ def _shore_status(incident: Incident | None) -> dict:
     approved = [p for p in incident.packets if p.approved]
     pending = [p for p in incident.packets if not (p.approved or p.rejected)]
     if approved:
+        # With the approver's name. A crew told that something was released, but not by
+        # whom, is still being asked to trust a black box on the worst day of their lives.
+        who = sorted({p.decided_by for p in approved if p.decided_by})
         return {"state": "notified",
                 "text": f"{len(approved)} of {len(incident.packets)} notifications "
-                        f"approved and released by a shore operator.",
+                        f"approved and released by "
+                        + (", ".join(who) if who else "a shore operator") + ".",
                 "released": [p.recipient_name for p in approved]}
     if pending:
         return {"state": "awaiting_approval",

@@ -9,10 +9,82 @@ const SESN = (() => {
   const NAV = {0: "under way (engine)", 1: "at anchor", 2: "not under command",
                5: "moored", 6: "AGROUND", 7: "fishing", 15: "undefined"};
 
+  /* One vocabulary for the five recipient classes, shared by the operations console
+     and the bridge terminal.
+
+     `plain` is written for someone who has never seen this system. It sits under the
+     packet header ashore and inside the crew's own view of what was done, and those
+     two readings must not drift apart: a master asking "who is MRCC SIM-TASMAN and
+     will they come" has to get the same answer the operator releasing the message
+     was looking at. */
+  const RECIPIENTS = {
+    mrcc: {
+      label: "Rescue coordination centre",
+      plain: "The shore authority legally responsible for this stretch of ocean. It "
+           + "decides who sails and directs the whole response. It is an office with a "
+           + "24-hour watch, not a ship, and it usually owns no vessels of its own.",
+    },
+    naval: {
+      label: "SAR asset",
+      plain: "A rescue-capable vessel near enough to reach the casualty: coastguard, "
+           + "navy, or a tug. This asks it to come. The rescue centre does the actual "
+           + "tasking, so it is a request and says so.",
+    },
+    merchant: {
+      label: "Nearest merchant",
+      plain: "An ordinary cargo ship passing nearby. Under SOLAS every master must help "
+           + "a vessel in distress if they can do so safely, and this is that request. A "
+           + "master may decline, and a declined request is still information.",
+    },
+    manager: {
+      label: "Company / DPA",
+      plain: "The Designated Person Ashore: the 24-hour emergency contact every ship "
+           + "operator is required to have. Gets the complete picture, including the raw "
+           + "report and the crew detail, because they answer for the ship.",
+    },
+    next_of_kin: {
+      label: "Next of kin",
+      plain: "A draft letter to families. This system never sends it. A named person in "
+           + "the company's welfare team reads it, edits it, and makes the call, because "
+           + "no one should hear this from a machine.",
+    },
+  };
+
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  /* Repaint a panel without throwing away where the reader was.
+
+     Every portal re-renders whole panels when a tick lands, and innerHTML resets the
+     scroll of the box the panel lives in. A master reading the bottom of an incident
+     got yanked back to the top every four seconds, which on a bridge reads as the
+     terminal crashing and recovering. Pass `inner` when the scrolling box is itself
+     inside the repainted element and so is destroyed by the repaint. */
+  function repaint(el, html, inner, key = "") {
+    if (!el) return;
+    const find = () => inner ? el.querySelector(inner) : el.closest(".scroll");
+    // Hold the scroll only when this is the same view being repainted under the
+    // reader. Navigating to a different packet is not a repaint, and restoring the
+    // previous one's offset would drop the operator into the middle of a draft they
+    // have not started reading. Callers that only ever show one view pass no key.
+    const before = el.dataset.view === key ? find()?.scrollTop : 0;
+    el.innerHTML = html;
+    el.dataset.view = key;
+    const box = find();
+    if (box && before) box.scrollTop = before;
+  }
+
   const esc = s => String(s ?? "").replace(/[<>&]/g, c => ({"<": "&lt;", ">": "&gt;", "&": "&amp;"}[c]));
   const num = n => Number(n).toLocaleString();
+
+  /* Range between two contacts, for panels that have both positions in hand and
+     no reason to ask the server for the arithmetic. */
+  function distanceNm(a, b) {
+    const R = 3440.065, r = d => d * Math.PI / 180;
+    const dp = r(b.lat - a.lat), dl = r(b.lon - a.lon);
+    const x = Math.sin(dp / 2) ** 2
+            + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dl / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(x)));
+  }
 
   function position(lat, lon) {
     const d = (v, p, n) => `${Math.abs(v).toFixed(3)}°${v >= 0 ? p : n}`;
@@ -21,7 +93,7 @@ const SESN = (() => {
 
   /* Websocket with viewport push and automatic reconnect. The server culls to the
      bounds we send, so a portal that never sends bounds gets the whole world capped. */
-  function connect({ onFrame, onIncident, onState }) {
+  function connect({ onFrame, onIncident, onMessage, onState }) {
     let ws, bounds = null, cap = 2500;
     const open = () => {
       ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`);
@@ -31,6 +103,7 @@ const SESN = (() => {
         const m = JSON.parse(e.data);
         if (m.type === "frame") onFrame?.(m);
         if (m.type === "incident") onIncident?.(m.incident);
+        if (m.type === "message") onMessage?.(m);
       };
     };
     const push = () => {
@@ -68,8 +141,19 @@ const SESN = (() => {
       });
       m.addLayer({
         id: "ships", type: "circle", source: "fleet",
+        // Casualties paint last. In a dense lane a red contact drawn in feed order
+        // ends up underneath the merchant traffic around it, which is the one dot
+        // on the screen that may never be covered.
+        layout: { "circle-sort-key": ["get", "d"] },
         paint: {
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 1, 1.7, 4, 3, 8, 6, 12, 9],
+          /* One zoom interpolation only: maplibre rejects a `case` wrapping two of
+             them, so the casualty/normal choice goes inside each stop. A casualty
+             has to be findable at world zoom, where 1.7px is not. */
+          "circle-radius": ["interpolate", ["linear"], ["zoom"],
+            1, ["case", ["==", ["get", "d"], 1], 5, 1.7],
+            4, ["case", ["==", ["get", "d"], 1], 7, 3],
+            8, ["case", ["==", ["get", "d"], 1], 11, 6],
+            12, ["case", ["==", ["get", "d"], 1], 15, 9]],
           "circle-color": [
             "case",
             ["==", ["get", "d"], 1], "#fb5570",
@@ -81,8 +165,9 @@ const SESN = (() => {
             "#5b8fc7",
           ],
           "circle-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.75, 6, 0.95],
-          "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 4, 0, 7, 1],
-          "circle-stroke-color": "#070b10",
+          "circle-stroke-width": ["interpolate", ["linear"], ["zoom"],
+            4, ["case", ["==", ["get", "d"], 1], 1.5, 0], 7, 1.5],
+          "circle-stroke-color": ["case", ["==", ["get", "d"], 1], "#ffe3e8", "#070b10"],
         },
       });
     });
@@ -91,18 +176,57 @@ const SESN = (() => {
 
   const fc = features => ({ type: "FeatureCollection", features });
 
-  /* Compact wire rows -> GeoJSON. Row is [mmsi, lat, lon, course, kindIdx, flags]
-     and flags packs distressed/dark/sar-capable. */
-  function rowsToGeoJSON(rows) {
-    return fc(rows.map(r => ({
+  /* A frame -> GeoJSON. Row is [mmsi, lat, lon, course, kindIdx, flags] and flags
+     packs distressed/dark/sar-capable.
+
+     Casualties are merged in from the frame's own `distressed` list rather than
+     taken only from the culled rows. The server culls to the viewport, so a ship in
+     distress outside it would vanish from the map at exactly the moment an operator
+     needs to see it. Every portal draws every casualty, always. */
+  function frameToGeoJSON(f) {
+    const feature = (m, lat, lon, c, t, d, k, s) => ({
       type: "Feature",
-      geometry: { type: "Point", coordinates: [r[2], r[1]] },
-      properties: {
-        m: r[0], c: r[3], t: r[4],
-        d: r[5] & 1 ? 1 : 0, k: r[5] & 2 ? 1 : 0, s: r[5] & 4 ? 1 : 0,
-      },
-    })));
+      geometry: { type: "Point", coordinates: [lon, lat] },
+      properties: { m, c, t, d, k, s },
+    });
+    const out = (f.rows || []).map(r => feature(
+      r[0], r[1], r[2], r[3], r[4],
+      r[5] & 1 ? 1 : 0, r[5] & 2 ? 1 : 0, r[5] & 4 ? 1 : 0));
+    const seen = new Set((f.rows || []).map(r => r[0]));
+    for (const v of f.distressed || []) {
+      if (seen.has(v.mmsi)) continue;
+      out.push(feature(v.mmsi, v.lat, v.lon, v.course, KINDS.indexOf(v.kind),
+                       1, v.dark ? 1 : 0, v.sarCapable ? 1 : 0));
+    }
+    return fc(out);
   }
+
+  /* Our own dialog. The browser's confirm() box is the only piece of UI in these
+     portals drawn by the browser vendor, and on a bridge terminal it reads as a
+     malfunction rather than a decision. Returns a promise of true/false. */
+  function dialog({ title, body = "", confirm = "Confirm", cancel = "Cancel", tone = "primary" }) {
+    return new Promise(resolve => {
+      const el = document.createElement("div");
+      el.className = "modal";
+      el.innerHTML = `<div class="box" role="alertdialog" aria-modal="true">
+        <h2>${esc(title)}</h2>
+        <div class="text">${esc(body)}</div>
+        <div class="row" style="margin-top:17px">
+          ${cancel ? `<button class="btn ghost" data-ok="0">${esc(cancel)}</button>` : ""}
+          <button class="btn ${tone}" data-ok="1">${esc(confirm)}</button>
+        </div></div>`;
+      const close = v => { el.remove(); document.removeEventListener("keydown", key); resolve(v); };
+      const key = e => { if (e.key === "Escape") close(false); };
+      el.onclick = e => { if (e.target === el) close(false); };
+      el.querySelectorAll("[data-ok]").forEach(b => b.onclick = () => close(b.dataset.ok === "1"));
+      document.addEventListener("keydown", key);
+      document.body.appendChild(el);
+      el.querySelector('[data-ok="1"]').focus();
+    });
+  }
+
+  const say = (title, body) => dialog({ title, body, confirm: "Understood", cancel: "" });
+  const clock = ts => String(ts || "").slice(11, 16) + "Z";
 
   const boundsOf = m => {
     const b = m.getBounds();
@@ -119,6 +243,6 @@ const SESN = (() => {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
-  return { $, $$, esc, num, position, connect, map, fc, rowsToGeoJSON, boundsOf,
-           api, post, KINDS, SEV, NAV };
+  return { $, $$, esc, num, position, clock, distanceNm, connect, map, fc, frameToGeoJSON,
+           boundsOf, api, post, dialog, say, repaint, KINDS, SEV, NAV, RECIPIENTS };
 })();

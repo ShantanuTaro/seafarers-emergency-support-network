@@ -98,6 +98,347 @@ def test_every_packet_starts_unapproved():
     assert all("supplementary to GMDSS" in p.body for p in packets), "missing GMDSS footer"
 
 
+def test_shore_messages_carry_a_name():
+    """A bridge message is not a gated packet, so the only thing making it
+    accountable is the name on it, and the endpoint has to insist on one. The
+    vessel side does not: a crew member is already identified by their hull."""
+    from fastapi.testclient import TestClient
+
+    from sesn.main import app
+    from sesn.main import sim as live
+
+    client = TestClient(app)
+    mmsi = next(iter(live.ships))
+    post = lambda m, **body: client.post(f"/api/vessel/{m}/message", json=body)
+
+    assert post(mmsi, text="Tug tasked", frm="shore").status_code == 400, "unnamed shore message accepted"
+    assert post(mmsi, text="   ", frm="vessel").status_code == 400, "empty message accepted"
+    assert post("000000000", text="hello").status_code == 404
+    ok = post(mmsi, text="Tug tasked, ETA 3 h.", author="Watchkeeper", frm="shore")
+    assert ok.status_code == 200, ok.text
+
+    thread = client.get(f"/api/vessel/{mmsi}/situation").json()["messages"]
+    assert thread[-1] == {**thread[-1], "frm": "shore", "author": "Watchkeeper"}, thread
+
+
+def test_every_hull_declares_what_it_is_carrying():
+    """Cargo decides whether a fire is a fire or a hazmat incident, and it is the
+    first thing a responding master asks. An empty field is a wrong answer."""
+    sim = Simulator(size=1500)
+    missing = [s.mmsi for s in sim.ships.values() if not s.cargo]
+    assert not missing, f"{len(missing)} hulls carry nothing at all, e.g. {missing[:3]}"
+
+
+def test_env_file_never_overrides_a_real_environment_variable():
+    """A key exported on the command line has to win over one sitting in .env, or
+    `GROQ_API_KEY=... uvicorn ...` silently runs against the wrong account."""
+    import os
+    import tempfile
+    from pathlib import Path
+
+    from sesn import providers
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / ".env"
+        path.write_text("# a comment\nSESN_TEST_A=from-file\nSESN_TEST_B='quoted value'\n")
+        os.environ["SESN_TEST_A"] = "from-shell"
+        os.environ.pop("SESN_TEST_B", None)
+        providers.load_env_file(path)
+        assert os.environ["SESN_TEST_A"] == "from-shell", "the file overrode the shell"
+        assert os.environ["SESN_TEST_B"] == "quoted value", "quotes were not stripped"
+        for k in ("SESN_TEST_A", "SESN_TEST_B"):
+            os.environ.pop(k, None)
+
+
+def test_bulk_release_can_never_reach_a_held_recipient():
+    """The ops console lets an operator release the operational drafts in one action.
+    Anything not explicitly held there goes out in that batch, so a recipient class
+    added to the backend and forgotten in the console would be bulk-released to next
+    of kin by default. This is the check that makes the console fail loudly instead."""
+    import re
+    from pathlib import Path
+
+    from sesn.models import Packet
+
+    js = (Path(__file__).resolve().parent / "web" / "ops.html").read_text()
+    ranked = set(re.findall(r"(\w+): \d", re.search(r"const RANK = \{(.+?)\}", js, re.S).group(1)))
+    held = set(re.findall(r'"(\w+)"', re.search(r"const HELD = new Set\(\[(.+?)\]", js, re.S).group(1)))
+
+    classes = set(Packet.model_fields["recipient_class"].annotation.__args__)
+    assert classes <= ranked, f"ops console does not order {classes - ranked}"
+    assert {"manager", "next_of_kin"} <= held, "a held recipient left the held set"
+    assert not (held - classes), f"held set names a recipient the backend never sends: {held - classes}"
+
+
+def test_a_security_incident_is_never_tasked_to_an_unarmed_hull():
+    """A tug is SAR-capable and sorts to the top of the responder list, so the naval
+    draft used to address one for an active boarding, under a letterhead that talks
+    about rules of engagement. For piracy and armed attack the tasked asset must be
+    armed, or there must be no tasking draft at all and the recommendation must say
+    so. Sending an unarmed tug into a boarding does not rescue anyone, it produces a
+    second casualty."""
+    from sesn.models import Incident
+    from sesn.sim import ARMED
+
+    sim = Simulator(size=4000)
+    for fault in ("piracy", "attack"):
+        ship = next(s for s in sim.ships.values() if s.route and not s.can_assist)
+        sim.inject(ship.mmsi, fault)
+        result, _ = triage.run(FAULTS[fault].text, ship.telemetry())
+        inc = Incident(id="t", mmsi=ship.mmsi, vessel_name=ship.name, opened_at="now",
+                       report_text=FAULTS[fault].text, telemetry=ship.telemetry(),
+                       triage=result)
+        responders = response.nearest(list(sim.ships.values()), ship, limit=8)
+        packets = response.build_packets(inc, ship, responders)
+
+        tasked = [p for p in packets if p.recipient_class == "naval"]
+        for p in tasked:
+            hull = next(r for r in responders if r.mmsi == p.recipient_mmsi)
+            assert hull.kind in ARMED, f"{fault}: tasked {hull.kind} {hull.name} to a boarding"
+
+        region, mrcc = response.sar_region(ship.lat, ship.lon)
+        rec = response.recommend(result, responders, mrcc, region)
+        if not tasked:
+            assert any(a.urgency == "caution" and "no naval or coastguard" in a.text.lower()
+                       for a in rec), f"{fault}: no armed asset and nothing said so"
+
+
+def test_every_classification_has_a_recommended_response():
+    """A classification with no doctrine entry silently falls back to the Unknown
+    row, which tells an operator to establish voice contact on a confirmed fire."""
+    from sesn.models import IncidentType
+
+    missing = [t.value for t in IncidentType if t.value not in response.DOCTRINE]
+    assert not missing, f"no response doctrine for {missing}"
+    for name, (want, lines, caution) in response.DOCTRINE.items():
+        assert want in response._FALLBACK or want == "none", f"{name}: unknown asset class {want}"
+        assert lines and caution, f"{name}: doctrine row is empty"
+
+
+def test_the_recommendation_and_the_drafts_never_name_different_ships():
+    """The console shows "Task X" directly above a draft addressed to Y if these are
+    computed twice by two different rules, which is how it read before `assign`
+    existed: a man overboard recommended the container ship half a mile away while
+    the draft on the same screen went to a coastguard cutter an hour out. An operator
+    handed two answers has been handed none."""
+    import re
+
+    from sesn.models import Incident, IncidentType
+
+    sim = Simulator(size=4000)
+    checked = 0
+    for fault in FAULTS:
+        ship = next(s for s in sim.ships.values() if s.route and not s.distressed)
+        sim.inject(ship.mmsi, fault)
+        result, _ = triage.run(FAULTS[fault].text, ship.telemetry())
+        inc = Incident(id="t", mmsi=ship.mmsi, vessel_name=ship.name, opened_at="now",
+                       report_text=FAULTS[fault].text, telemetry=ship.telemetry(),
+                       triage=result)
+        responders = response.nearest(list(sim.ships.values()), ship, limit=8)
+        packets = response.build_packets(inc, ship, responders)
+        region, mrcc = response.sar_region(ship.lat, ship.lon)
+        rec = response.recommend(result, responders, mrcc, region)
+
+        task = next((a for a in rec if a.text.startswith("Task ")), None)
+        if task is None:
+            # No asset of the wanted class was in range. The duty-to-assist ask may
+            # still stand on its own -- its body carries the hazard and the master
+            # decides -- but nothing may be tasked as a response asset.
+            assert not [p for p in packets if p.recipient_class == "naval"], (
+                f"{fault}: tasked a response asset that the recommendation never named")
+            continue
+        named = re.match(r"Task (.+?) \(", task.text).group(1)
+        assert any(p.recipient_name.startswith(named) for p in packets if p.recipient_mmsi), (
+            f"{fault}: recommendation says task {named!r}, "
+            f"drafts went to {[p.recipient_name for p in packets if p.recipient_mmsi]}")
+        checked += 1
+    # Not every fault reaches a tasking: the silent beacons classify Unknown, and some
+    # positions have no asset of the wanted class in range. The floor is here so the
+    # loop cannot quietly end up asserting nothing at all.
+    assert checked >= 6, f"only {checked} faults exercised a tasking path"
+
+
+def test_an_unestablished_classification_drafts_no_tasking():
+    """A bare beacon names no incident. Drafting a rules-of-engagement tasking off one
+    is exactly the guess the triage contract refuses to make, and it must not reappear
+    one layer down in the response builder."""
+    from sesn.models import Incident, IncidentType, Severity, TriageResult
+
+    sim = Simulator(size=2000)
+    ship = next(s for s in sim.ships.values() if s.route)
+    result = TriageResult(type=IncidentType.UNKNOWN, severity=Severity.HIGH,
+                          confidence=0.3, unknowns=["nature of distress"],
+                          rationale="AIS-SART with no voice contact.")
+    inc = Incident(id="t", mmsi=ship.mmsi, vessel_name=ship.name, opened_at="now",
+                   report_text="", telemetry=ship.telemetry(), triage=result)
+    packets = response.build_packets(inc, ship, response.nearest(list(sim.ships.values()), ship))
+    classes = [p.recipient_class for p in packets]
+    assert "naval" not in classes and "merchant" not in classes, (
+        f"tasked a hull off an unestablished classification: {classes}")
+    assert "mrcc" in classes, "an unknown beacon must still reach the rescue centre"
+
+
+def test_own_ship_marker_plots_lon_lat_in_that_order():
+    """The bridge map draws a "you are here" marker for the signed-in hull, from the
+    tick when the frame carries it and from the last situation poll when the server
+    has culled it out of view.
+
+    GeoJSON is [lon, lat] and every other surface in this system says lat first, so a
+    swap here is one transposed pair away and puts a master's own ship in the wrong
+    ocean while looking entirely plausible. Runs the real function under node rather
+    than trusting a reading of it; skips if node is absent, as check_web.py does.
+    """
+    import json
+    import re
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    node = shutil.which("node")
+    if not node:
+        print("  ..  node not found, skipping own-ship marker check")
+        return
+
+    src = (Path(__file__).resolve().parent / "web" / "vessel.html").read_text()
+    start = src.index("function drawMe(frame) {")
+    depth, i = 0, src.index("{", start)
+    for i in range(i, len(src)):                      # balance to the closing brace
+        depth += (src[i] == "{") - (src[i] == "}")
+        if depth == 0:
+            break
+    drawMe = src[start:i + 1]
+    assert "setData" in drawMe, "extracted the wrong block"
+
+    harness = """
+    let painted = null;
+    const SESN = { fc: features => ({ type: "FeatureCollection", features }) };
+    const map = { getSource: () => ({ setData: d => { painted = d; } }) };
+    let me = null, mineNow = null;
+    %s
+    const out = [];
+    const run = (label, frame) => {
+      drawMe(frame);
+      out.push([label, painted.features.map(f => f.geometry.coordinates)]);
+    };
+    me = "111"; mineNow = { lat: 51.5, lon: -0.1 };
+    run("from frame", { rows: [["999", 1, 2, 0, 0, 0], ["111", 51.5, -0.1, 0, 0, 0]] });
+    run("culled, falls back to poll", { rows: [["999", 1, 2, 0, 0, 0]] });
+    mineNow = null;
+    run("no position known at all", { rows: [] });
+    me = null; mineNow = { lat: 51.5, lon: -0.1 };
+    run("signed out", { rows: [["111", 51.5, -0.1, 0, 0, 0]] });
+    console.log(JSON.stringify(out));
+    """ % drawMe
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "marker.js"
+        path.write_text(harness)
+        proc = subprocess.run([node, str(path)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    got = dict(json.loads(proc.stdout))
+
+    # GeoJSON order, so longitude first. A swap reads as 51.5E off Somalia.
+    assert got["from frame"] == [[-0.1, 51.5]], got["from frame"]
+    assert got["culled, falls back to poll"] == [[-0.1, 51.5]], got["culled, falls back to poll"]
+    assert got["no position known at all"] == [], got["no position known at all"]
+    assert got["signed out"] == [], got["signed out"]
+
+
+def test_every_recipient_class_has_a_plain_language_explainer():
+    """Both consoles describe the five recipients from one table in common.js. An
+    operator releasing a message to "MRCC SIM-TASMAN" and a master reading who was
+    told about their own fire must get the same answer, and a recipient class added
+    to the backend with no entry here shows the crew a bare "next_of_kin" instead."""
+    import re
+    from pathlib import Path
+
+    from sesn.models import Packet
+
+    js = (Path(__file__).resolve().parent / "web" / "common.js").read_text()
+    block = re.search(r"const RECIPIENTS = \{(.+?)\n  \};", js, re.S).group(1)
+    described = set(re.findall(r"^    (\w+): \{", block, re.M))
+
+    classes = set(Packet.model_fields["recipient_class"].annotation.__args__)
+    assert classes == described, f"explainer table and Packet disagree: {classes ^ described}"
+    # Every entry must carry both halves. A label with no `plain` silently renders the
+    # empty string under the packet header, which reads as a layout bug, not a gap.
+    for name in described:
+        entry = re.search(r"    %s: \{(.+?)\n    \}," % name, block, re.S).group(1)
+        assert "label:" in entry and "plain:" in entry, f"{name} is missing label or plain"
+        assert len(entry) > 200, f"{name}: explainer is too short to explain anything"
+
+
+def test_repaint_holds_scroll_only_while_the_view_is_the_same():
+    """Both consoles repaint whole panels when a tick lands, and innerHTML resets the
+    scroll of the box the panel sits in: a master reading the bottom of an incident
+    was yanked back to the top every four seconds.
+
+    The inverse is just as wrong. Restoring the offset when the operator has moved to
+    a *different* packet drops them into the middle of a draft they have not started
+    reading, which is a worse failure than the one being fixed: it looks like they
+    read it. Runs the real helper under node; skips if node is absent.
+    """
+    import json
+    import re
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    node = shutil.which("node")
+    if not node:
+        print("  ..  node not found, skipping repaint check")
+        return
+
+    src = (Path(__file__).resolve().parent / "web" / "common.js").read_text()
+    start = src.index("  function repaint(")
+    depth, i = 0, src.index("{", start)
+    for i in range(i, len(src)):
+        depth += (src[i] == "{") - (src[i] == "}")
+        if depth == 0:
+            break
+    fn = src[start:i + 1]
+    assert "dataset.view" in fn, "extracted the wrong block"
+
+    harness = """
+    // Smallest DOM that can express the bug: a scrolling box whose offset survives or
+    // does not survive an innerHTML write.
+    const box = { scrollTop: 0 };
+    const el = {
+      dataset: {},
+      _html: "",
+      set innerHTML(v) { this._html = v; box.scrollTop = 0; },   // what a browser does
+      get innerHTML() { return this._html; },
+      querySelector: () => box,
+      closest: () => box,
+    };
+    %s
+    const out = [];
+    const step = (label, key, scrollTo) => {
+      box.scrollTop = scrollTo;
+      repaint(el, "<p>x</p>", ".pane", key);
+      out.push([label, box.scrollTop]);
+    };
+    step("first paint", "step-1", 0);
+    step("tick, same view, reader is 420px down", "step-1", 420);
+    step("operator moves to another packet", "step-2", 420);
+    step("tick again on the new packet", "step-2", 90);
+    console.log(JSON.stringify(out));
+    """ % fn
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "repaint.js"
+        path.write_text(harness)
+        proc = subprocess.run([node, str(path)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    got = dict(json.loads(proc.stdout))
+
+    assert got["tick, same view, reader is 420px down"] == 420, got
+    assert got["operator moves to another packet"] == 0, got
+    assert got["tick again on the new packet"] == 90, got
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

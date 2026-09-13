@@ -15,6 +15,79 @@
   .opsbar { display: flex; gap: 10px; align-items: center; padding: 10px 16px;
             border-bottom: 1px solid var(--line); background: var(--surface); flex: none; }
   .opsbar input { width: 220px; }
+
+  /* ---- review dialog ---------------------------------------------------
+
+     Native <dialog>: top layer, backdrop and Escape come free, and a hand-rolled
+     overlay would have to reimplement all three. The queue stays mounted behind it
+     and the rail lists every other pending incident, so a casualty arriving while
+     an operator is reading one is still on the screen.                          */
+  dialog#review { width: min(1060px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
+    padding: 0; border: 1px solid var(--line-bright); border-radius: 14px; overflow: hidden;
+    background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+  dialog#review::backdrop { background: rgba(3,6,10,.72); backdrop-filter: blur(3px); }
+  .rv-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px;
+    padding: 13px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+  .rv-ttl { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 700;
+    letter-spacing: -.01em; margin-bottom: 3px; }
+  .rv-head .x { background: none; border: 0; color: var(--dim); font-size: 19px; width: 26px;
+    padding: 0; cursor: pointer; }
+  .rv-head .x:hover { color: var(--ink); }
+  .rv-body { display: grid; grid-template-columns: 268px 1fr; }
+  .rv-steps { border-right: 1px solid var(--line); background: var(--surface-2);
+    padding: 8px 10px 14px; overflow: auto; max-height: calc(100vh - 132px); }
+  .rv-pane { padding: 16px 18px 20px; overflow: auto; max-height: calc(100vh - 132px); }
+  .rv-grp { font-size: 9.5px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase;
+    color: var(--accent); margin: 12px 2px 2px; }
+  .rv-note { font-size: 11px; line-height: 1.45; color: var(--faint); margin: 0 2px 7px; }
+  .rv-step { display: block; width: 100%; text-align: left; font: inherit; cursor: pointer;
+    background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+    border-radius: var(--r-sm); padding: 8px 9px; margin-bottom: 6px; }
+  .rv-step:hover { border-color: var(--line-bright); }
+  .rv-step.on { border-color: var(--accent); background: var(--surface-3); }
+  .rv-step .lbl { display: block; font-size: 12.5px; font-weight: 600; margin-top: 4px; }
+  .rv-step .to { display: block; font-size: 11px; color: var(--dim); }
+  .rv-bulk { width: 100%; margin: 3px 0 2px; }
+  .rv-crumb { font-size: 10px; font-weight: 800; letter-spacing: .1em; color: var(--faint); }
+  .rv-crumb .held { color: var(--warn); }
+  .rv-cls { font-size: 9.5px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase;
+    color: var(--accent); margin-top: 9px; }
+  .rv-to { font-size: 15px; font-weight: 700; }
+  /* Who this recipient actually is. An operator releasing a message to "MRCC SIM-TASMAN"
+     should not have to already know that this is a shore watch room rather than a ship. */
+  .rv-who { margin: 6px 0 0; font-size: 12px; line-height: 1.55; color: var(--dim);
+    border-left: 2px solid var(--line); padding-left: 9px; }
+  .rv-warn { margin-top: 10px; padding: 9px 11px; border-radius: var(--r-sm); font-size: 12px;
+    line-height: 1.5; border: 1px solid rgba(251,191,36,.35); background: rgba(251,191,36,.08);
+    color: var(--warn); }
+  .rv-confirm { margin-top: 12px; padding: 12px 13px; border: 1px solid var(--accent);
+    border-radius: var(--r-sm); background: var(--surface-2); font-size: 12.5px; line-height: 1.55; }
+  .rv-done { margin-top: 12px; font-size: 12.5px; font-weight: 600; color: var(--ok); }
+  .rv-err { margin-bottom: 10px; font-size: 12px; font-weight: 600; color: var(--danger); }
+  @media (max-width: 860px) {
+    .rv-body { grid-template-columns: 1fr; }
+    .rv-steps { border-right: 0; border-bottom: 1px solid var(--line); max-height: 190px; }
+  }
+  .rv-unk { margin: 0; padding-left: 18px; color: var(--warn); font-size: 12.5px; line-height: 1.65; }
+  .rv-rec { margin: 0; padding: 0; list-style: none; counter-reset: rec; }
+  .rv-rec li { display: flex; gap: 9px; align-items: baseline; padding: 7px 10px; margin-bottom: 5px;
+    border-radius: var(--r-sm); background: var(--surface-2); border-left: 2px solid var(--line);
+    font-size: 12.5px; line-height: 1.55; }
+  .rv-rec .tag { flex: none; font-size: 9px; font-weight: 800; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--faint); width: 52px; }
+  .rv-rec .u-now, .rv-rec li.u-now { border-left-color: var(--accent); }
+  .rv-rec li.u-now .tag { color: var(--accent); }
+  .rv-rec li.u-caution { border-left-color: var(--warn); background: rgba(251,191,36,.07); }
+  .rv-rec li.u-caution .tag, .rv-rec li.u-caution span { color: var(--warn); }
+  .rv-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .rv-tbl th { text-align: left; font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase;
+    color: var(--faint); font-weight: 800; padding: 0 8px 5px 0; }
+  .rv-tbl td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); }
+  .rv-tbl tr.on td { background: rgba(56,189,248,.06); }
+  .rv-tbl .pill { font-size: 9px; padding: 1px 6px; }
+  .rv-cta { position: sticky; bottom: -20px; margin-top: 16px; padding: 10px 0 4px;
+    background: linear-gradient(to top, var(--surface) 72%, transparent); }
+  .pill.armed { background: rgba(192,132,252,.18); color: #c084fc; }
 </style></head>
 <body>
 <div class="shell">
@@ -42,6 +115,7 @@
         <span class="mono" id="inview">-</span> <span class="muted">in view ·</span>
         <span class="mono" id="fleet">-</span> <span class="muted">fleet</span>
       </div>
+      <div class="overlay inspector" id="inspector"></div>
       <div class="overlay legend">
         <div style="font-weight:700;font-size:10px;letter-spacing:.1em;color:var(--faint)">LEGEND</div>
         <div class="item"><span class="dot" style="background:#fb5570"></span> in distress</div>
@@ -82,45 +156,33 @@
   </div>
 </div>
 
+<dialog id="review"></dialog>
+
 <script src="/static/common.js"></script>
 <script>
 const { $, $$, esc, num, position, SEV, NAV } = SESN;
-let incidents = [], open = null, picked = null, distressed = [];
+let incidents = [], review = null, picked = null, distressed = [], inspect = null;
 
 const map = SESN.map("map", { center: [40, 22], zoom: 1.5 });
 
 map.on("load", () => {
   map.on("moveend", pushView);
-  map.on("click", "ships", async e => {
-    const mmsi = e.features[0].properties.m;
-    const v = await SESN.api("/api/vessel/" + mmsi);
-    new maplibregl.Popup({ maxWidth: "320px" }).setLngLat(e.lngLat).setHTML(`
-      <div style="font-weight:700;font-size:14px">${esc(v.name)}</div>
-      <div class="muted" style="margin-bottom:8px">${esc(v.operator || v.kind)} · ${esc(v.flag)}</div>
-      <dl class="kv">
-        <dt>MMSI</dt><dd>${v.mmsi}</dd>
-        <dt>Position</dt><dd>${position(v.lat, v.lon)}</dd>
-        <dt>Course / speed</dt><dd>${v.course}° · ${v.speed} kn</dd>
-        <dt>Nav status</dt><dd>${NAV[v.navStatus] || v.navStatus}</dd>
-        <dt>Persons aboard</dt><dd>${v.pob}</dd>
-        <dt>Bound for</dt><dd>${esc(v.destination || "-")}</dd>
-      </dl>
-      ${v.fault ? `<div class="pill sev-4" style="margin-top:9px">${esc(v.fault)}</div>` : ""}`)
-      .addTo(map);
-  });
+  map.on("click", "ships", e => clickShip(e.features[0].properties.m));
   map.on("mouseenter", "ships", () => map.getCanvas().style.cursor = "pointer");
   map.on("mouseleave", "ships", () => map.getCanvas().style.cursor = "");
 });
 
 const link = SESN.connect({
   onFrame: f => {
-    if (map.getSource("fleet")) map.getSource("fleet").setData(SESN.rowsToGeoJSON(f.rows));
+    if (map.getSource("fleet")) map.getSource("fleet").setData(SESN.frameToGeoJSON(f));
     $("#shown").textContent = num(f.rows.length);
     $("#inview").textContent = num(f.inView);
     $("#fleet").textContent = num(f.stats.fleet);
     distressed = f.distressed;
+    if (inspect) renderInspector();
   },
   onIncident: () => loadQueue(),
+  onMessage: m => { if (m.mmsi === inspect) renderInspector(); },
   onState: up => $("#link").innerHTML =
     `<span class="dot ${up ? "live" : "off"}"></span> ${up ? "live" : "reconnecting"}`,
 });
@@ -133,98 +195,412 @@ $$(".tabs button").forEach(b => b.onclick = () => {
   if (b.dataset.t === "audit") loadAudit();
 });
 
-/* ---- incident queue ---- */
+/* ---- incident queue ----------------------------------------------------
+
+   The queue list is the standing picture and is never replaced. Review happens in
+   a dialog over it, and that dialog carries a live list of every other incident
+   still pending, so a casualty arriving while an operator is reading one is still
+   on the screen at the exact moment it must be.
+
+   Packets are reviewed one at a time, in two phases:
+
+   Operational (rescue centre, SAR asset, nearest merchant) is what gets someone
+   moving. Those three can be released together, because an operator who has read
+   the classification has made one decision, not three.
+
+   Held (company/DPA, next of kin) is a different decision with a different blast
+   radius. Never bulk, never defaulted, always one at a time.                    */
+
+const RANK = { mrcc: 0, naval: 1, merchant: 2, manager: 3, next_of_kin: 4 };
+const HELD = new Set(["manager", "next_of_kin"]);
+const LABEL = Object.fromEntries(
+  Object.entries(SESN.RECIPIENTS).map(([k, v]) => [k, v.label]));
+
+/* The response asset is called what it actually is. On a boarding the hull tasked is
+   armed and the draft talks about rules of engagement, and labelling that "SAR asset"
+   in the rail buries the one distinction the operator most needs to see. */
+const SECURITY = new Set(["Piracy", "Attack"]);
+const labelOf = (i, p) => p.recipient_class === "naval" && SECURITY.has(i.triage.type)
+  ? "Armed response" : LABEL[p.recipient_class] || p.recipient_class;
+
+/* Packets carry their original index because that is what the approval endpoint
+   addresses. Sorting for the operator must not renumber the audit log. */
+const stepsOf = i => i.packets.map((p, n) => ({ p, n }))
+  .sort((a, b) => (RANK[a.p.recipient_class] ?? 9) - (RANK[b.p.recipient_class] ?? 9));
+const undecided = s => !s.p.approved && !s.p.rejected;
+const isHeld = s => HELD.has(s.p.recipient_class);
+const operatorName = () => document.getElementById("operator").value.trim();
+
 async function loadQueue() {
   incidents = await SESN.api("/api/incidents");
-  const pending = incidents.reduce((n, i) =>
-    n + i.packets.filter(p => !p.approved && !p.rejected).length, 0);
-  $("#qn").textContent = pending ? `${pending} pending` : "";
-  if (open) {
-    const inc = incidents.find(i => i.id === open);
-    if (inc) return renderIncident(inc);
-  }
-  $("#p-queue").innerHTML = incidents.length ? incidents.map(card).join("")
+  const pending = incidents.reduce((n, i) => n + stepsOf(i).filter(undecided).length, 0);
+  $("#qn").textContent = pending ? `${pending} drafts` : "";
+  SESN.repaint($("#p-queue"), incidents.length
+    ? `<p class="eyebrow">${incidents.length} active incident${incidents.length > 1 ? "s" : ""}
+       · ${pending} drafted message${pending === 1 ? "" : "s"} awaiting approval</p>
+       <p class="muted" style="margin:-4px 0 12px">One incident drafts one message per
+       recipient, each worded for who reads it. Open one to review them in order:
+       the operational messages that get someone moving, then the ones held for a
+       company decision.</p>` + incidents.map(card).join("")
     : `<div class="empty"><div class="big">◎</div><p>No incidents.<br>
-       <span class="muted">Inject one from the control panel, or raise one from Intake.</span></p></div>`;
+       <span class="muted">Inject one from the control panel, or raise one from Intake.</span></p></div>`);
+  if (review) renderReview();
 }
 
 const card = i => {
-  const t = i.triage, pend = i.packets.filter(p => !p.approved && !p.rejected).length;
-  return `<div class="card click ${t.severity >= 3 ? "alert" : ""}" onclick="openInc('${i.id}')">
+  const t = i.triage, st = stepsOf(i);
+  const op = st.filter(s => undecided(s) && !isHeld(s)).length;
+  const held = st.filter(s => undecided(s) && isHeld(s)).length;
+  return `<div class="card click ${t.severity >= 3 ? "alert" : ""}" onclick="openInc('${i.id}')"
+    style="${review?.id === i.id ? "border-color:var(--accent)" : ""}">
     <div class="split">
       <strong>${esc(i.vessel_name)}</strong>
       <span class="pill sev-${t.severity}">${SEV[t.severity]}</span>
     </div>
     <div style="margin:5px 0 3px"><strong style="color:var(--accent)">${t.type}</strong>
       <span class="muted">· confidence ${t.confidence.toFixed(2)} · ${t.provider}</span></div>
-    <div class="muted mono" style="font-size:11.5px">${i.mmsi} · ${i.opened_at.slice(11,19)}Z
-      ${pend ? `· <span style="color:var(--warn)">${pend} pending approval</span>` : "· all decided"}</div>
+    <div class="muted mono" style="font-size:11.5px">${i.mmsi} · ${i.opened_at.slice(11,19)}Z</div>
+    <div style="display:flex;gap:6px;align-items:center;margin-top:7px">
+      ${op ? `<span class="pill pending">${op} operational</span>` : ""}
+      ${held ? `<span class="pill ghost">${held} held</span>` : ""}
+      ${op || held ? "" : `<span class="pill approved">all decided</span>`}
+      <span class="muted" style="margin-left:auto;font-size:11.5px">review ▸</span>
+    </div>
   </div>`;
 };
 
-window.openInc = id => { open = id; loadQueue(); };
-window.back = () => { open = null; loadQueue(); };
+/* A click on a contact and a click on a queue row are the same gesture: put the map
+   on the casualty, the inspector on the hull, and the drafts in front of the
+   operator. A hull with no incident just gets the inspector. */
+window.clickShip = mmsi => {
+  openInspector(mmsi);
+  const inc = incidents.find(i => String(i.mmsi) === String(mmsi));
+  if (inc) openInc(inc.id);
+};
 
-function renderIncident(i) {
-  const t = i.triage;
-  $("#p-queue").innerHTML = `
-    <button class="btn ghost sm" onclick="back()">← queue</button>
-    <div style="margin:14px 0 10px">
-      <div class="split"><h1 style="margin:0">${esc(i.vessel_name)}</h1>
-        <span class="pill sev-${t.severity}">${SEV[t.severity]}</span></div>
-      <div style="font-size:17px;font-weight:700;color:var(--accent);margin-top:3px">${t.type}</div>
+window.openInc = id => {
+  const inc = incidents.find(i => i.id === id);
+  if (!inc) return;
+  review = { id, step: -1, confirming: null, err: "" };
+  map.flyTo({ center: [inc.telemetry.lon, inc.telemetry.lat],
+              zoom: Math.max(map.getZoom(), 6), duration: 700 });
+  openInspector(inc.mmsi);
+  renderReview();
+  const d = $("#review");
+  if (!d.open) d.showModal();
+  loadQueue();
+};
+
+window.closeReview = () => { review = null; $("#review").close(); loadQueue(); };
+window.goStep = n => { Object.assign(review, { step: n, confirming: null, err: "" }); renderReview(); };
+window.askConfirm = what => { Object.assign(review, { confirming: what, err: "" }); renderReview(); };
+const flash = msg => { review.err = msg; review.confirming = null; renderReview(); };
+
+function renderReview() {
+  const i = incidents.find(x => x.id === review.id);
+  if (!i) return closeReview();
+  const t = i.triage, st = stepsOf(i);
+  const opOpen = st.filter(s => undecided(s) && !isHeld(s));
+  const others = incidents.filter(x => x.id !== i.id && stepsOf(x).some(undecided));
+
+  SESN.repaint($("#review"), `
+    <div class="rv-head">
+      <div>
+        <div class="rv-ttl">${esc(i.vessel_name)}
+          <span class="pill sev-${t.severity}">${SEV[t.severity]}</span></div>
+        <div class="muted" style="font-size:11.5px">${t.type} · confidence
+          ${t.confidence.toFixed(2)} · ${esc(t.provider)} · ${i.mmsi} ·
+          ${position(i.telemetry.lat, i.telemetry.lon)} ·
+          ${i.telemetry.speedKn} kn · ${NAV[i.telemetry.navStatus] || i.telemetry.navStatus}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input placeholder="Operator name" value="${esc($("#operator").value)}" style="width:180px"
+               oninput="document.getElementById('operator').value = this.value">
+        <button class="x" onclick="closeReview()" title="close">×</button>
+      </div>
     </div>
-    <div class="card">
-      <dl class="kv">
-        <dt>MMSI</dt><dd>${i.mmsi}</dd>
-        <dt>Position</dt><dd>${position(i.telemetry.lat, i.telemetry.lon)}</dd>
-        <dt>Speed / nav</dt><dd>${i.telemetry.speedKn} kn · ${NAV[i.telemetry.navStatus] || i.telemetry.navStatus}</dd>
-        <dt>Confidence</dt><dd>${t.confidence.toFixed(2)}</dd>
-        <dt>Classifier</dt><dd>${t.provider} · ${t.latency_ms} ms</dd>
-        <dt>Opened</dt><dd>${i.opened_at.slice(11,19)}Z</dd>
-        <dt>Staged fault</dt><dd>${esc(i.injected_fault || "vessel report")}</dd>
-      </dl>
-    </div>
-    <p class="eyebrow">Basis for this classification</p>
-    <p class="muted" style="margin:0 0 14px">${esc(t.rationale) || "-"}</p>
-    <p class="eyebrow">Declared unknowns</p>
-    ${t.unknowns.length
-      ? `<ul class="muted" style="margin:0 0 14px;padding-left:18px">${
-          t.unknowns.map(u => `<li>${esc(u)}</li>`).join("")}</ul>`
-      : `<p class="muted" style="margin:0 0 14px">None declared.</p>`}
-    ${i.report_text ? `<p class="eyebrow">Report as received</p><pre>${esc(i.report_text)}</pre>` : ""}
-    <p class="eyebrow" style="margin-top:18px">Response packets, approval required</p>
-    <p class="muted" style="margin:0 0 12px">Nothing below has been sent, and nothing will be
-    sent until it carries your name.</p>
-    ${i.packets.map((p, n) => packet(i.id, p, n)).join("")}`;
+    <div class="rv-body">
+      <aside class="rv-steps">${rail(i, st, opOpen, others)}</aside>
+      <section class="rv-pane">
+        ${review.err ? `<div class="rv-err">${esc(review.err)}</div>` : ""}
+        ${review.confirming === "bulk" ? bulkPane(i, opOpen)
+          : review.step < 0 ? briefPane(i, st) : stepPane(i, st)}
+      </section>
+    </div>`, ".rv-pane", `${review.id}|${review.step}|${review.confirming}`);
+
+  // The confirm lands under a draft long enough to scroll, so on a tall packet it
+  // opened below the fold and the operator saw nothing happen when they clicked
+  // Approve. Put the decision itself on the screen, not merely in the document.
+  if (review.confirming !== null)
+    $(".rv-confirm, .rv-pane .row")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
-const packet = (id, p, n) => `
-  <div class="packet">
-    <header>
-      <div><div class="cls">${p.recipient_class.replace("_", " ")}</div>
-        <div class="to">${esc(p.recipient_name)}</div></div>
-      <span class="pill ${p.approved ? "approved" : p.rejected ? "rejected" : "pending"}">
-        ${p.approved ? "approved" : p.rejected ? "rejected" : "pending"}</span>
-    </header>
-    <div class="inner">
-      <div style="font-weight:600;margin-bottom:4px">${esc(p.subject)}</div>
-      <pre>${esc(p.body)}</pre>
-      ${p.approved || p.rejected ? "" : `<div class="row">
-        <button class="btn primary" onclick="decide('${id}',${n},'approve')">Approve &amp; release</button>
-        <button class="btn danger" onclick="decide('${id}',${n},'reject')">Reject</button></div>`}
-    </div>
+const railStep = (i, st, s) => {
+  const n = st.indexOf(s), p = s.p;
+  return `<button class="rv-step ${n === review.step && review.confirming !== "bulk" ? "on" : ""}"
+    onclick="goStep(${n})">
+    <span class="pill ${p.approved ? "approved" : p.rejected ? "rejected" : "pending"}">
+      ${p.approved ? "released" : p.rejected ? "rejected" : "pending"}</span>
+    <span class="lbl">${labelOf(i, p)}</span>
+    <span class="to">${esc(p.recipient_name)}</span>
+  </button>`;
+};
+
+const rail = (i, st, opOpen, others) => `
+  <div class="rv-grp">Assessment</div>
+  <div class="rv-note">What the classifier concluded, and what to do about it.</div>
+  <button class="rv-step ${review.step < 0 && review.confirming !== "bulk" ? "on" : ""}"
+    onclick="goStep(-1)">
+    <span class="pill ghost">read first</span>
+    <span class="lbl">Triage &amp; recommendation</span>
+    <span class="to">Basis, unknowns, who to task</span>
+  </button>
+  <div class="rv-grp">Operational</div>
+  <div class="rv-note">Gets someone moving. One decision, so these can go together.</div>
+  ${st.filter(s => !isHeld(s)).map(s => railStep(i, st, s)).join("")}
+  ${opOpen.length > 1 ? `<button class="btn primary sm rv-bulk" onclick="askConfirm('bulk')">
+     Approve &amp; release all ${opOpen.length}</button>` : ""}
+  <div class="rv-grp">Held</div>
+  <div class="rv-note">A company decision, not a rescue one. Always one at a time.</div>
+  ${st.filter(isHeld).map(s => railStep(i, st, s)).join("")}
+  ${others.length ? `<div class="rv-grp">Also waiting</div>` + others.map(o =>
+    `<button class="rv-step" onclick="openInc('${o.id}')">
+      <span class="pill sev-${o.triage.severity}">${SEV[o.triage.severity]}</span>
+      <span class="lbl">${esc(o.vessel_name)}</span>
+      <span class="to">${o.triage.type} · ${stepsOf(o).filter(undecided).length} pending</span>
+    </button>`).join("") : ""}`;
+
+const HELD_NOTE = {
+  next_of_kin: "Draft only. A named human in the company welfare function reads, edits "
+    + "and sends this. Releasing it here marks it handed to them. It contacts nobody.",
+  manager: "The full picture, including the raw report and the crew detail. This goes to "
+    + "the company, not to a responder, and it is not what gets a ship moving.",
+};
+
+function stepPane(i, st) {
+  const s = st[review.step], p = s.p;
+  const nextOpen = st.findIndex((x, n) => n > review.step && undecided(x));
+  const who = esc(operatorName()) || "no name given";
+  return `
+    <div class="rv-crumb">Step ${review.step + 1} of ${st.length} ·
+      <span class="${isHeld(s) ? "held" : ""}">${isHeld(s) ? "HELD" : "OPERATIONAL"}</span></div>
+    <div class="rv-cls">${labelOf(i, p)}</div>
+    <div class="rv-to">${esc(p.recipient_name)}</div>
+    <p class="rv-who">${SESN.RECIPIENTS[p.recipient_class]?.plain || ""}</p>
+    ${isHeld(s) ? `<div class="rv-warn">${HELD_NOTE[p.recipient_class] || ""}</div>` : ""}
+    <div style="font-weight:600;margin:13px 0 4px">${esc(p.subject)}</div>
+    <pre style="max-height:46vh">${esc(p.body)}</pre>
+    ${!undecided(s)
+      ? `<div class="rv-done">${p.approved ? "Released" : "Rejected"}. Recorded in the audit log.
+         ${nextOpen >= 0 ? `<button class="btn sm" style="margin-left:8px"
+           onclick="goStep(${nextOpen})">Next pending ▸</button>` : ""}</div>`
+      : review.confirming === review.step
+      ? `<div class="rv-confirm">
+           Release to <b>${esc(p.recipient_name)}</b>, recorded against <b>${who}</b>.
+           In this simulation nothing leaves the system: release writes the audit log and
+           marks the packet sent.
+           <div class="row" style="margin-top:11px">
+             <button class="btn ghost" onclick="goStep(${review.step})">Back</button>
+             <button class="btn primary" onclick="decide('approve')">Confirm release</button>
+           </div></div>`
+      : `<div class="row" style="margin-top:13px">
+           <button class="btn primary" onclick="askConfirm(${review.step})">Approve &amp; release</button>
+           <button class="btn danger" onclick="decide('reject')">Reject</button>
+           ${nextOpen >= 0 ? `<button class="btn ghost" onclick="goStep(${nextOpen})">Skip for now</button>` : ""}
+         </div>`}`;
+}
+
+const bulkPane = (i, opOpen) => `
+  <div class="rv-crumb">Bulk release · <span>OPERATIONAL ONLY</span></div>
+  <div class="rv-to" style="margin-top:8px">Release ${opOpen.length} operational messages</div>
+  <p class="muted" style="margin:8px 0 0">Recorded against
+    <b>${esc(operatorName()) || "no name given"}</b>, one audit line each.</p>
+  <ul class="muted" style="margin:10px 0;padding-left:18px;line-height:1.7">
+    ${opOpen.map(s => `<li><b>${labelOf(i, s.p)}</b> — ${esc(s.p.recipient_name)}</li>`).join("")}
+  </ul>
+  <div class="rv-warn">The company and next-of-kin drafts are not included and cannot be.
+    You will be taken to them one at a time.</div>
+  <div class="row" style="margin-top:13px">
+    <button class="btn ghost" onclick="goStep(${review.step})">Back</button>
+    <button class="btn primary" onclick="bulk()">Confirm release of all ${opOpen.length}</button>
   </div>`;
 
-window.decide = async (id, n, d) => {
-  const operator = $("#operator").value.trim();
-  if (!operator) {
-    alert("Enter your name in the top bar first. Every approval is recorded against a person.");
+/* ---- assessment ----------------------------------------------------------
+
+   Step 0, and the reason the other five exist. It carries the split that matters:
+   the classification is a model's judgement, with its basis and its declared
+   unknowns on the same screen, and the tasking that follows is standing policy.
+   Labelling which is which is not decoration. An operator overruling a
+   recommendation needs to know whether they are overruling a language model or a
+   procedure, and so does the inquiry reading the log afterwards.                */
+
+const URGENCY = { now: "Do now", next: "Then", caution: "Caution" };
+
+const briefPane = (i, st) => {
+  const t = i.triage;
+  const drafted = new Set(i.packets.map(p => p.recipient_mmsi).filter(Boolean));
+  const left = st.filter(undecided).length;
+  const first = st.findIndex(undecided);
+  return `
+    <div class="rv-crumb">Assessment · read before releasing anything</div>
+    <div class="rv-to" style="margin-top:8px">${t.type}
+      <span class="pill sev-${t.severity}">${SEV[t.severity]}</span></div>
+    <p class="muted" style="margin:6px 0 0">Classified by <b>${esc(t.provider)}</b> at
+      confidence <b>${t.confidence.toFixed(2)}</b> in ${t.latency_ms} ms.
+      ${t.provider === "baseline" ? "No LLM key configured, this is the deterministic floor."
+        : "The deterministic baseline classifier runs alongside as the floor."}</p>
+
+    <p class="eyebrow" style="margin-top:15px">Basis</p>
+    <p style="margin:0">${esc(t.rationale) || "No rationale recorded."}</p>
+
+    <p class="eyebrow" style="margin-top:14px">Declared unknowns</p>
+    ${t.unknowns.length
+      ? `<ul class="rv-unk">${t.unknowns.map(u => `<li>${esc(u)}</li>`).join("")}</ul>`
+      : `<p class="muted" style="margin:0">None declared.</p>`}
+
+    <p class="eyebrow" style="margin-top:16px">Recommended response</p>
+    <p class="muted" style="margin:0 0 9px;font-size:11.5px">Derived from the
+      classification above and the positions below. This part is a standing procedure,
+      not a model output: it is identical on every replay of this scenario.</p>
+    <ol class="rv-rec">
+      ${(i.recommendation || []).map(a => `<li class="u-${a.urgency}">
+        <span class="tag">${URGENCY[a.urgency] || a.urgency}</span>
+        <span>${esc(a.text)}</span></li>`).join("")
+        || `<li class="u-caution"><span>No recommendation recorded.</span></li>`}
+    </ol>
+
+    <p class="eyebrow" style="margin-top:16px">In range, ranked</p>
+    <p class="muted" style="margin:0 0 8px;font-size:11.5px">Everything the responder
+      search found, not only the hulls that got a draft. Overrule it if the picture on
+      your screen says otherwise.</p>
+    <table class="rv-tbl">
+      <tr><th>Vessel</th><th>Type</th><th>Range</th><th>ETA</th><th></th></tr>
+      ${(i.responders || []).slice(0, 8).map(r => `<tr class="${drafted.has(r.mmsi) ? "on" : ""}">
+        <td>${esc(r.name)}</td>
+        <td class="muted">${r.kind}</td>
+        <td class="mono">${r.distance_nm} nm</td>
+        <td class="mono muted">${r.eta_hours ? r.eta_hours + " h" : "—"}</td>
+        <td>${r.armed ? `<span class="pill armed">armed</span>`
+             : r.sar_capable ? `<span class="pill approved">SAR</span>` : ""}
+            ${drafted.has(r.mmsi) ? `<span class="pill pending">drafted</span>` : ""}</td>
+      </tr>`).join("") || `<tr><td colspan="5" class="muted">Nothing within range.</td></tr>`}
+    </table>
+
+    <div class="row rv-cta">
+      ${left ? `<button class="btn primary" onclick="goStep(${first})">
+          Begin review · ${left} draft${left === 1 ? "" : "s"} pending ▸</button>`
+        : `<button class="btn" onclick="closeReview()">All ${st.length} decided · close</button>`}
+    </div>`;
+};
+
+/* One decision, then straight to the next undecided draft. The operator never goes
+   back to a list to find out what is still outstanding. */
+window.decide = async d => {
+  const operator = operatorName();
+  if (!operator) return flash("Every approval is recorded against a person. Enter your name above.");
+  const i = incidents.find(x => x.id === review.id);
+  const s = stepsOf(i)[review.step];
+  try { await SESN.post(`/api/incidents/${review.id}/packets/${s.n}/${d}`, { operator }); }
+  catch (e) { return flash(e.message); }
+  await advance();
+};
+
+window.bulk = async () => {
+  const operator = operatorName();
+  if (!operator) return flash("Every approval is recorded against a person. Enter your name above.");
+  const i = incidents.find(x => x.id === review.id);
+  for (const s of stepsOf(i).filter(x => undecided(x) && !isHeld(x))) {
+    try { await SESN.post(`/api/incidents/${review.id}/packets/${s.n}/approve`, { operator }); }
+    catch (e) { return flash(`${LABEL[s.p.recipient_class]}: ${e.message}`); }
+  }
+  await advance();
+};
+
+async function advance() {
+  review.confirming = null; review.err = "";
+  await loadQueue();
+  const i = incidents.find(x => x.id === review?.id);
+  if (!i) return;
+  const st = stepsOf(i);
+  const after = st.findIndex((x, n) => n > review.step && undecided(x));
+  const any = st.findIndex(undecided);
+  review.step = after >= 0 ? after : any >= 0 ? any : -1;
+  renderReview();
+}
+
+/* ---- vessel inspector: what the hull is, and a line to its bridge ---------
+
+   Replaces a map popup. An operator clicking a contact wants the same three things
+   every time: what is it, what is it carrying, and can I talk to it.            */
+
+window.openInspector = async mmsi => { inspect = mmsi; await renderInspector(); };
+window.closeInspector = () => { inspect = null; $("#inspector").classList.remove("on"); };
+
+async function renderInspector() {
+  const mmsi = inspect;
+  const [v, thread] = await Promise.all([
+    SESN.api("/api/vessel/" + mmsi),
+    SESN.api(`/api/vessel/${mmsi}/messages`),
+  ]);
+  if (inspect !== mmsi) return;  // operator clicked another hull while we fetched
+  const el = $("#inspector");
+  el.classList.add("on");
+  el.innerHTML = `
+    <header>
+      <div class="split">
+        <div>
+          <strong style="font-size:14px">${esc(v.name)}</strong>
+          <div class="muted" style="font-size:11.5px">${esc(v.operator || "no operator")} ·
+            ${esc(v.flag)}</div>
+        </div>
+        <button class="x" onclick="closeInspector()" title="close">×</button>
+      </div>
+      ${v.distressed ? `<div class="pill sev-4" style="margin-top:7px">IN DISTRESS ·
+        ${esc(v.fault || "vessel report")}</div>` : ""}
+    </header>
+    <div class="body-scroll">
+      <dl class="kv" style="grid-template-columns:96px 1fr">
+        <dt>MMSI</dt><dd>${v.mmsi}</dd>
+        <dt>Type</dt><dd>${esc(v.kind)}${v.sarCapable ? " · SAR capable" : ""}</dd>
+        <dt>Carrying</dt><dd style="font-family:var(--sans);font-size:12.5px">${esc(v.cargo || "not declared")}</dd>
+        <dt>Persons</dt><dd>${v.pob} aboard</dd>
+        <dt>Position</dt><dd>${position(v.lat, v.lon)}</dd>
+        <dt>Course</dt><dd>${v.course}° · ${v.speed} kn</dd>
+        <dt>Nav status</dt><dd>${NAV[v.navStatus] || v.navStatus}${v.dark ? " · AIS DARK" : ""}</dd>
+        <dt>Bound for</dt><dd>${esc(v.destination || "-")}</dd>
+        <dt>Lane</dt><dd style="font-family:var(--sans);font-size:12.5px">${esc(v.corridor || "-")}</dd>
+      </dl>
+
+      <p class="eyebrow" style="margin-top:15px">Bridge communications</p>
+      <div class="thread">
+        ${thread.length ? thread.map(m => `<div class="msg ${m.frm}">
+            <div class="who">${m.frm === "shore" ? "shore" : "bridge"} ·
+              ${esc(m.author)} · ${SESN.clock(m.ts)}</div>
+            ${esc(m.text)}</div>`).join("")
+          : `<p class="muted" style="margin:0">No traffic with this bridge yet.</p>`}
+      </div>
+      <textarea id="msg" rows="3" placeholder="Message to the bridge terminal…"></textarea>
+      <button class="btn primary sm" style="width:100%;margin-top:7px"
+        onclick="sendMsg('${v.mmsi}')">Send to bridge</button>
+      <p class="muted" style="margin:8px 0 0;font-size:11px">Sent under your operator name
+      and written to the audit log. This is a direct operator message, not a GMDSS
+      distress relay, and it is not one of the gated response packets.</p>
+    </div>`;
+}
+
+window.sendMsg = async mmsi => {
+  const author = $("#operator").value.trim();
+  const text = $("#msg").value.trim();
+  if (!author) {
+    await SESN.say("Your name first",
+      "A message to a bridge carries the name of the operator who sent it. Enter yours "
+      + "in the top bar.");
     $("#operator").focus(); return;
   }
-  try { await SESN.post(`/api/incidents/${id}/packets/${n}/${d}`, { operator }); }
-  catch (e) { alert(e.message); }
-  loadQueue();
+  if (!text) return;
+  try { await SESN.post(`/api/vessel/${mmsi}/message`, { text, author, frm: "shore" }); }
+  catch (e) { await SESN.say("Not sent", e.message); }
+  renderInspector();
 };
 
 /* ---- intake ---- */
@@ -257,7 +633,7 @@ $("#raise").onclick = async () => {
   if (!picked || !text) return;
   $("#raise").disabled = true;
   try { await SESN.post("/api/report", { mmsi: picked.mmsi, text }); $("#text").value = ""; }
-  catch (e) { alert(e.message); }
+  catch (e) { await SESN.say("Not raised", e.message); }
   $("#raise").disabled = false;
   $$(".tabs button")[0].click(); loadQueue();
 };

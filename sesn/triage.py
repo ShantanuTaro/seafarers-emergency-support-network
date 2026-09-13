@@ -93,7 +93,7 @@ def classify_llm(state: State) -> State:
     }
     system = SYSTEM_PROMPT.format(types=", ".join(t.value for t in IncidentType))
     try:
-        raw, provider, latency = providers.complete_json(
+        raw, provider, model, latency = providers.complete_json(
             system, json.dumps(payload, indent=2)
         )
         result = TriageResult(
@@ -107,7 +107,7 @@ def classify_llm(state: State) -> State:
         )
         return {"result": result,
                 "trace": [{"node": "classify_llm", "provider": provider,
-                           "latency_ms": latency, "ok": True}]}
+                           "model": model, "latency_ms": latency, "ok": True}]}
     except (providers.AllProvidersDown, KeyError, ValueError, TypeError) as exc:
         # Fall through to the baseline. A model that answers badly is the same as a
         # model that does not answer.

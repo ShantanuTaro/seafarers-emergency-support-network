@@ -16,11 +16,33 @@ import json
 import os
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import httpx
 
 COOLDOWN_SECONDS = 120.0
 TIMEOUT_SECONDS = 20.0
+ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+
+
+def load_env_file(path: Path = ENV_PATH) -> None:
+    """Read KEY=value lines from .env into the environment, if the file exists.
+
+    Six lines of stdlib instead of a dependency. A real environment variable always
+    wins, so `GROQ_API_KEY=... uvicorn ...` still overrides the file. `.env` is
+    gitignored: a key in it must never reach a commit.
+    """
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+
+
+load_env_file()
 
 
 @dataclass
@@ -36,6 +58,13 @@ class Provider:
         return os.environ.get(self.env_key)
 
     @property
+    def model_name(self) -> str:
+        """The model actually sent to this provider. Override it without touching
+        code by putting `MISTRAL_MODEL=mistral-large-latest` (or GEMINI_MODEL,
+        GROQ_MODEL) in `.env`. The value below is the free-tier default."""
+        return os.environ.get(self.env_key.replace("_API_KEY", "_MODEL"), self.model)
+
+    @property
     def available(self) -> bool:
         return bool(self.key) and time.monotonic() >= self.open_until
 
@@ -48,9 +77,13 @@ CHAIN: list[Provider] = [
     Provider("gemini", "GEMINI_API_KEY",
              "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
              "gemini-2.0-flash"),
+    # ministral-8b, not mistral-small: a new free-tier key authenticates fine but
+    # mistral-small-latest answers 429 "Rate limit exceeded" on it, which trips the
+    # breaker on the first incident and silently drops triage to the baseline. Set
+    # MISTRAL_MODEL=mistral-small-latest in .env once the account will serve it.
     Provider("mistral", "MISTRAL_API_KEY",
              "https://api.mistral.ai/v1/chat/completions",
-             "mistral-small-latest"),
+             "ministral-8b-latest"),
     Provider("groq", "GROQ_API_KEY",
              "https://api.groq.com/openai/v1/chat/completions",
              "llama-3.3-70b-versatile"),
@@ -65,8 +98,8 @@ def any_available() -> bool:
     return any(p.available for p in CHAIN)
 
 
-def complete_json(system: str, user: str) -> tuple[dict, str, int]:
-    """Ask the chain for a JSON object. Returns (parsed, provider_name, latency_ms).
+def complete_json(system: str, user: str) -> tuple[dict, str, str, int]:
+    """Ask the chain for a JSON object. Returns (parsed, provider, model, latency_ms).
 
     Raises AllProvidersDown if every provider is missing a key, cooling down, or
     failing. The caller is expected to fall back to the baseline, not to crash.
@@ -81,7 +114,7 @@ def complete_json(system: str, user: str) -> tuple[dict, str, int]:
                 p.url,
                 headers={"Authorization": f"Bearer {p.key}"},
                 json={
-                    "model": p.model,
+                    "model": p.model_name,
                     "messages": [
                         {"role": "system", "content": system},
                         {"role": "user", "content": user},
@@ -98,7 +131,7 @@ def complete_json(system: str, user: str) -> tuple[dict, str, int]:
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
             latency = int((time.monotonic() - started) * 1000)
-            return json.loads(content), p.name, latency
+            return json.loads(content), p.name, p.model_name, latency
         except (httpx.HTTPError, KeyError, ValueError, json.JSONDecodeError) as exc:
             p.trip()
             errors.append(f"{p.name}: {type(exc).__name__}")

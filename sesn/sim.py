@@ -136,10 +136,37 @@ FLAGS = ["Panama", "Liberia", "Marshall Islands", "Singapore", "Malta", "Bahamas
 MIDS = ["636", "538", "371", "477", "249", "309", "563", "215", "241", "419",
         "412", "431", "257", "232"]
 
+# What each hull is carrying. Operationally this is not decoration: cargo decides
+# whether a fire is a fire or a hazmat incident, and it is the first thing a
+# responding master asks about before closing.
+CARGOES: dict[str, list[str]] = {
+    "container": ["mixed containerised freight, 8,400 TEU",
+                  "containerised freight incl. 12 IMDG class 3 units, 14,000 TEU",
+                  "containerised freight, reefer boxes, 4,200 TEU"],
+    "bulker": ["62,000 t iron ore", "45,000 t grain", "70,000 t coal",
+               "28,000 t bauxite"],
+    "tanker": ["95,000 t crude oil", "38,000 t gasoil", "12,000 t palm oil",
+               "30,000 t naphtha, IMDG class 3"],
+    "gas": ["68,000 m3 LNG", "22,000 m3 LPG, IMDG class 2.1"],
+    "general": ["3,800 t project cargo, steel sections", "6,200 t bagged cement",
+                "sawn timber, deck cargo"],
+    "roro": ["1,900 vehicles", "trade cars and 180 trailers"],
+    "passenger": ["passengers and vehicles, no declared freight"],
+    "fishing": ["frozen catch, approx. 40 t"],
+    "tug": ["no cargo, towing gear and salvage pumps aboard"],
+    "naval": ["no commercial cargo, military stores"],
+    "coastguard": ["no cargo, SAR equipment and rescue boat"],
+    "research": ["no cargo, scientific equipment"],
+}
+
 # Index order is the wire format for `kind`; append only, never reorder.
 KINDS = ["container", "bulker", "tanker", "gas", "general", "roro", "passenger",
          "fishing", "tug", "naval", "coastguard", "research"]
 SAR_CAPABLE = {"tug", "naval", "coastguard"}
+# Armed is a strict subset and the distinction decides a security case: a tug is
+# SAR-capable and sorts to the top of a responder list, but it is not a response to
+# an active boarding.
+ARMED = {"naval", "coastguard"}
 
 
 @dataclass(slots=True)
@@ -162,6 +189,7 @@ class Ship:
     ais_dark: bool = False
     injected_fault: str | None = None
     destination: str = ""
+    cargo: str = ""
 
     @property
     def can_assist(self) -> bool:
@@ -316,7 +344,8 @@ class Simulator:
             flag=FLAGS[rng.randrange(len(FLAGS))], pob=pob,
             lat=max(-85.0, min(85.0, lat)), lon=(lon + 540) % 360 - 180,
             course=rng.uniform(0, 360), speed_kn=speed, nav_status=nav,
-            corridor=corridor, route=route, leg=leg, destination=destination)
+            corridor=corridor, route=route, leg=leg, destination=destination,
+            cargo=CARGOES[kind][rng.randrange(len(CARGOES[kind]))])
         if route:
             nxt = route[(leg + 1) % len(route)]
             ship.course = bearing_deg(ship.lat, ship.lon, *nxt)
@@ -415,7 +444,8 @@ class Simulator:
             lat=near.lat + self.rng.uniform(-0.02, 0.02),
             lon=near.lon + self.rng.uniform(-0.02, 0.02),
             course=self.rng.uniform(0, 360), speed_kn=0.6, nav_status=15,
-            corridor="distress beacon", distressed=True)
+            corridor="distress beacon", distressed=True,
+            cargo="not applicable, distress transmitter")
         self.ships[mmsi] = beacon
         return beacon
 

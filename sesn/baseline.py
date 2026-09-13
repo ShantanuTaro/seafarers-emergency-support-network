@@ -78,6 +78,49 @@ def _mentions(low: str, term: str) -> bool:
     return False
 
 
+# What shore still does not know once the words have been read. A classification
+# that declares nothing unconfirmed is claiming the report was complete, and no
+# first report ever is. Each question carries the terms that would have answered it,
+# so a master who already said "all crew accounted for" is not asked again.
+GENERAL_UNKNOWNS: list[tuple[str, tuple[str, ...]]] = [
+    ("Whether all persons on board are accounted for",
+     ("accounted for", "all crew", "all hands", "muster")),
+    ("Whether the vessel retains propulsion and steering",
+     ("propulsion", "main engine", "under way", "steering", "not under command")),
+    ("Whether assistance has already been accepted from another vessel",
+     ("assist", "tug", "standing by", "escort", "salvage")),
+]
+
+TYPE_UNKNOWNS: dict[T, tuple[str, tuple[str, ...]]] = {
+    T.FIRE: ("Whether the fire is contained",
+             ("contained", "extinguish", "boundary cooling", "co2", "sealed")),
+    T.FLOODING: ("Rate of ingress and current angle of list",
+                 ("list", "degrees", "pumps", "ingress")),
+    T.PIRACY: ("Whether the boarders are armed and whether they are aboard",
+               ("armed", "boarded", "citadel", "weapons")),
+    T.ATTACK: ("Whether further attack is expected",
+               ("further", "second", "ceased", "cleared the area")),
+    T.COLLISION: ("Condition of the other vessel and persons in the water",
+                  ("other vessel", "going down", "recovering", "rescue boat")),
+    T.GROUNDING: ("Hull integrity and pollution risk",
+                  ("hull", "pollution", "breach", "soundings", "tanks")),
+    T.MACHINERY_FAILURE: ("Whether the vessel is setting toward a hazard",
+                          ("drift", "setting toward", "anchor", "traffic separation")),
+    T.MEDICAL_EVACUATION: ("Whether telemedical advice has been obtained",
+                           ("doctor", "telemedical", "medico", "medical advice")),
+    T.MAN_OVERBOARD: ("Time in the water and sea temperature",
+                      ("water temperature", "sea temperature", "minutes")),
+    T.CREW_ABANDONMENT: ("Number and position of survival craft",
+                         ("liferaft", "life raft", "free-fall boat", "rafts")),
+}
+
+
+def _unknowns(best: T, low: str) -> list[str]:
+    candidates = [TYPE_UNKNOWNS[best]] if best in TYPE_UNKNOWNS else []
+    return [question for question, answered in candidates + GENERAL_UNKNOWNS
+            if not any(a in low for a in answered)]
+
+
 def classify(text: str, telemetry: Telemetry | None) -> TriageResult:
     low = (text or "").lower()
 
@@ -136,10 +179,15 @@ def classify(text: str, telemetry: Telemetry | None) -> TriageResult:
         # The eval caught it, which is the point of the eval.
         severity = S(max(1, severity - 1))
 
-    matched = [k for k, terms in RULES if k == best for k in terms if k in low]
+    matched = sorted({term for kind, terms in RULES if kind is best
+                      for term in terms if _mentions(low, term)})
     return TriageResult(
         type=best, severity=severity,
         confidence=min(0.95, 0.45 + 0.15 * score),
-        unknowns=[],
-        
+        unknowns=_unknowns(best, low),
+        rationale=f"Report matched " + ", ".join(repr(m) for m in matched[:4])
+                  + f" against the {best.value} terms"
+                  + (f"; telemetry reports navigational status "
+                     f"{telemetry.nav_status} at {telemetry.speed_kn:.1f} kn."
+                     if telemetry else "."),
     )

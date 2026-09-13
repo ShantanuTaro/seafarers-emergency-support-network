@@ -215,7 +215,19 @@ pre {
 /* ---- bridge (seafarer) portal: bigger, calmer -------------------------- */
 
 body[data-portal="bridge"] { font-size: 15px; }
-body[data-portal="bridge"] .rail { width: 460px; }
+body[data-portal="bridge"] .rail { width: 430px; }
+body[data-portal="bridge"] .rail.left { width: 480px; }
+
+/* Two fixed rails on a 1280px laptop leave the map a 300px sliver, which reads as
+   "the map is broken" rather than "the map is narrow". Give the rails back first. */
+@media (max-width: 1500px) {
+  body[data-portal="bridge"] .rail { width: 370px; }
+  body[data-portal="bridge"] .rail.left { width: 400px; }
+}
+@media (max-width: 1200px) {
+  body[data-portal="bridge"] .rail { width: 320px; }
+  body[data-portal="bridge"] .rail.left { width: 340px; }
+}
 body[data-portal="bridge"] h1 { font-size: 26px; }
 .bigstate {
   border-radius: 14px; padding: 20px; margin-bottom: 14px;
@@ -240,6 +252,45 @@ body[data-portal="bridge"] h1 { font-size: 26px; }
 .distress-btn:hover { border-color: var(--danger); background: rgba(251, 85, 112, .1); }
 .distress-btn small { display: block; font-weight: 400; font-size: 11px;
                       color: var(--dim); margin-top: 3px; }
+
+/* ---- dialog: ours, not the browser's ----------------------------------- */
+
+.modal {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
+  background: rgba(3, 6, 10, .72); backdrop-filter: blur(3px); padding: 20px;
+}
+.modal .box {
+  width: 100%; max-width: 460px; background: var(--surface);
+  border: 1px solid var(--line-bright); border-radius: 14px;
+  padding: 20px 22px; box-shadow: var(--shadow);
+}
+.modal h2 { font-size: 18px; letter-spacing: -.02em; margin: 0 0 8px; }
+.modal .text { color: var(--dim); font-size: 13.5px; white-space: pre-line; }
+.modal .row > * { flex: 1; }
+
+/* ---- vessel inspector, the click target on the map --------------------- */
+
+.inspector {
+  right: 14px; bottom: 14px; width: 330px; max-height: calc(100% - 28px);
+  display: none; flex-direction: column; overflow: hidden;
+}
+.inspector.on { display: flex; }
+.inspector > header { padding: 12px 13px 11px; border-bottom: 1px solid var(--line); }
+.inspector .body-scroll { overflow-y: auto; padding: 12px 13px; }
+.inspector .x { background: none; border: 0; color: var(--dim); font-size: 18px;
+                cursor: pointer; line-height: 1; padding: 0 2px; }
+
+/* ---- message thread ---------------------------------------------------- */
+
+.thread { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; }
+.msg { max-width: 88%; padding: 8px 11px; border-radius: 11px; font-size: 13px;
+       border: 1px solid var(--line); background: var(--surface-2); }
+.msg .who { font-size: 10px; font-weight: 700; letter-spacing: .07em;
+            text-transform: uppercase; color: var(--faint); margin-bottom: 2px; }
+.msg.shore { align-self: flex-start; border-color: rgba(56, 189, 248, .4);
+             background: rgba(56, 189, 248, .09); }
+.msg.vessel { align-self: flex-end; border-color: var(--line-bright); }
+.msg.shore .who { color: var(--accent); }
 
 /* ---- misc -------------------------------------------------------------- */
 
