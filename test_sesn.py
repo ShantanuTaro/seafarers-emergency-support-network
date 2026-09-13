@@ -19,6 +19,16 @@ def test_sar_coverage_is_exhaustive():
     assert not gaps, f"{len(gaps)} positions have no responsible authority, e.g. {gaps[:3]}"
 
 
+def test_vessel_identities_are_consistent():
+    """A fleet where six hulls answer to "HYM Anchor", or an MMSI says Hong Kong while
+    the flag says Liberia, reads as fake to anyone who has stood a watch."""
+    from sesn.sim import FLAG_MIDS
+    ships = list(Simulator(size=20_000).ships.values())
+    assert len({s.name for s in ships}) == len(ships), "two hulls share a name"
+    wrong = [s.mmsi for s in ships if s.mmsi[:3] not in FLAG_MIDS[s.flag]]
+    assert not wrong, f"MMSI MID contradicts flag state: {wrong[:3]}"
+
+
 def test_simulator_is_deterministic():
     a, b = Simulator(size=500), Simulator(size=500)
     assert [s.mmsi for s in a.ships.values()] == [s.mmsi for s in b.ships.values()]
@@ -119,6 +129,28 @@ def test_shore_messages_carry_a_name():
 
     thread = client.get(f"/api/vessel/{mmsi}/situation").json()["messages"]
     assert thread[-1] == {**thread[-1], "frm": "shore", "author": "Watchkeeper"}, thread
+
+
+def test_vessel_search_filters_narrow_and_never_widen():
+    """The bridge sign-in narrows 60,000 hulls by type, flag, region and area. A filter
+    the endpoint silently ignores returns a plausible list of the wrong ships."""
+    from fastapi.testclient import TestClient
+
+    from sesn.main import app
+
+    client = TestClient(app)
+    find = lambda **p: client.get("/api/search", params={"limit": 200, **p}).json()
+    d = client.get("/api/directory").json()
+    assert d["kinds"] and d["flags"] and d["regions"] and d["areas"], d
+
+    got = find(kind="tanker", flag="Liberia")
+    assert got and all(v["kind"] == "tanker" and v["flag"] == "Liberia" for v in got)
+    got = find(area="Malacca Strait")
+    assert got and all(v["corridor"] == "Malacca Strait" for v in got)
+    got = find(region="Gulf of Aden / Bab el-Mandeb")
+    assert got and all(response.sar_region(v["lat"], v["lon"])[0] == "Gulf of Aden / Bab el-Mandeb"
+                       for v in got)
+    assert find(q="x") == [], "a single letter and no filter scanned the whole fleet"
 
 
 def test_every_hull_declares_what_it_is_carrying():
@@ -437,6 +469,53 @@ def test_repaint_holds_scroll_only_while_the_view_is_the_same():
     assert got["tick, same view, reader is 420px down"] == 420, got
     assert got["operator moves to another packet"] == 0, got
     assert got["tick again on the new packet"] == 90, got
+
+
+def test_every_page_carries_the_simulation_banner():
+    """Hard constraints 2 and 6: every page says it is a simulation and that it sits
+    beside GMDSS, never in place of it, in a banner above everything else. A restyle is
+    exactly when one page quietly loses its banner, and the page still looks finished."""
+    import re
+    from pathlib import Path
+
+    pages = sorted((Path(__file__).resolve().parent / "web").glob("*.html"))
+    assert len(pages) >= 4, f"expected the landing page and three portals, found {pages}"
+    for page in pages:
+        banner = re.search(r'<div class="simbar">(.*?)</div>', page.read_text(), re.S)
+        assert banner, f"{page.name} has no simulation banner"
+        text = " ".join(re.sub(r"<[^>]+>", " ", banner.group(1)).lower().split())
+        assert "simulat" in text, f"{page.name}: the banner never says this is a simulation"
+        assert "gmdss" in text and "never a replacement" in text, (
+            f"{page.name}: the banner drops 'supplementary to GMDSS, never a replacement'")
+
+
+def test_a_double_tap_raises_one_incident_and_every_draft_says_why():
+    """A master who taps "Send to shore" twice has one emergency. Two incidents means two
+    notifications to the same rescue centre. And a tasking draft that cannot say which
+    of its reasons came from the model is asking the operator to sign a black box."""
+    from fastapi.testclient import TestClient
+
+    from sesn.main import app, incidents
+
+    client = TestClient(app)
+    mmsi = client.get("/api/search", params={"sample": 1}).json()[0]["mmsi"]
+    ids = {client.post("/api/inject", json={"mmsi": mmsi, "fault": "collision"}).json()["id"]
+           for _ in range(3)}
+    assert len(ids) == 1, f"three taps opened {len(ids)} incidents"
+    text = {"mmsi": mmsi, "text": "we have hit a fishing boat"}
+    assert client.post("/api/report", json=text).json()["id"] == \
+           client.post("/api/report", json=text).json()["id"], "a repeated report duplicated"
+
+    inc = incidents[ids.pop()]
+    for pk in inc.packets:
+        assert pk.reasoning, f"{pk.recipient_class} draft carries no reasoning"
+        if pk.recipient_class in ("mrcc", "naval", "merchant"):
+            bases = {a.basis for a in pk.reasoning}
+            assert "classification" in bases and bases - {"classification"}, pk.recipient_class
+
+    client.post(f"/api/clear/{mmsi}")
+    again = client.post("/api/inject", json={"mmsi": mmsi, "fault": "collision"}).json()["id"]
+    assert again != inc.id, "after stand-down a real second emergency was swallowed"
 
 
 if __name__ == "__main__":

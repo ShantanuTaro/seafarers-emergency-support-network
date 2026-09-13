@@ -108,7 +108,7 @@ entry records which provider and model actually answered.
 ### Tests and evals
 
 ```bash
-.venv/bin/python test_sesn.py            # 11 invariant checks
+.venv/bin/python test_sesn.py            # 20 invariant checks
 .venv/bin/python -m evals.run            # triage eval table
 .venv/bin/python -m evals.run --agent    # same corpus, LangGraph path (needs a key)
 .venv/bin/python -m evals.run --gate     # regression ratchet, exits 1 if triage got worse
@@ -123,6 +123,11 @@ All of the above run in CI on every push.
 
 They are separate because the jobs are separate. One screen serving all three is how
 real operations consoles end up unusable.
+
+All of them share one design system in [`web/common.css`](web/common.css): Inter and IBM
+Plex Mono, one grey surface, pill buttons, and a cyan-to-orange spectrum used sparingly. The
+landing page, bridge terminal and control panel follow the system light or dark setting; the
+operations console is dark always.
 
 | Route | Who | What it does |
 | --- | --- | --- |
@@ -145,12 +150,12 @@ the watchkeeper, so the unknowns can be closed by the people who hold the answer
 
 ### `/ops`, the operations console
 
-Dense, dark, map dominant. The incident queue is always on screen, and opening one
-incident adds its detail below the list rather than replacing it: a console that
-swaps the queue for a detail view hides every casualty that arrives while an operator
-is reading one. Full triage detail: classification, the basis for it, declared
-unknowns, which classifier ran and how long it took. Manual intake for reports
-arriving by radio, sat phone or email. Append only audit log.
+Dense, dark, map dominant. The incident queue is always on screen, and opening an
+incident reviews it in a window over the queue that also lists every other incident
+still pending: a console that swaps the queue for a detail view hides every casualty
+that arrives while an operator is reading one. Full triage detail: classification, the
+basis for it, declared unknowns, which classifier ran and how long it took. Manual
+intake for reports arriving by radio, sat phone or email. Append only audit log.
 
 Clicking any contact on the map opens the vessel inspector: what the hull is, what it
 is carrying, persons aboard, live telemetry, and a direct line to its bridge
@@ -301,7 +306,11 @@ Three real defects, all of which would have shipped silently:
   declared from the bridge terminal. Nothing observes a real emergency.
 - **Not connected to any real distress system.** No GMDSS, no Cospas-Sarsat.
 - **Operator and vessel names are invented.** `Marslev Line`, `Zamir Line` and the rest
-  are fictional. No real carrier, vessel or MMSI appears anywhere in this repo.
+  are fictional. Vessel names follow real naming styles (brand plus city, Greek family
+  names, Japanese Maru, Chinese fishing registry numbers) from generated word lists in
+  `sesn/names.py`, so a generic one such as "Ocean Harmony" may happen to match some real
+  hull. No real vessel's MMSI, flag, position or cargo is attached to it, and nothing
+  shown describes any real ship's current status.
 - **MRCC designators are fictional**, for example `MRCC SIM-ADEN`. No real rescue
   coordination centre's details appear anywhere.
 - **Eval labels are not professionally validated.** The thirty scenarios and their
@@ -331,8 +340,9 @@ Three real defects, all of which would have shipped silently:
 
 ## Stack
 
-Python 3.12, FastAPI, LangGraph, pydantic, MapLibre GL with OpenFreeMap tiles.
-No build step, no database, no paid services.
+Python 3.12, FastAPI, LangGraph, pydantic, MapLibre GL with OpenFreeMap tiles. Inter and
+IBM Plex Mono are bundled under the SIL Open Font License. No build step, no database, no
+paid services.
 
 ## License
 

@@ -116,11 +116,15 @@ const SESN = (() => {
     };
   }
 
-  /* One map configuration, used by all three portals at different zooms. */
-  function map(container, { center = [20, 25], zoom = 1.6, style = "positron" } = {}) {
+  /* One map configuration, used by all three portals at different zooms. The basemap
+     follows the page: OpenFreeMap's dark style under a dark page, positron under a
+     light one. The ops console pins itself dark; the others follow the system. */
+  function map(container, { center = [20, 25], zoom = 1.6 } = {}) {
+    const theme = document.documentElement.dataset.theme;
+    const dark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
     const m = new maplibregl.Map({
       container,
-      style: `https://tiles.openfreemap.org/styles/${style}`,
+      style: `https://tiles.openfreemap.org/styles/${dark ? "dark" : "positron"}`,
       center, zoom, attributionControl: { compact: true },
       maxZoom: 13, renderWorldCopies: true,
     });
@@ -135,7 +139,7 @@ const SESN = (() => {
         filter: ["==", ["get", "d"], 1],
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 1, 11, 6, 26, 12, 60],
-          "circle-color": "#fb5570", "circle-opacity": 0.2,
+          "circle-color": "#ff2d55", "circle-opacity": 0.2,
           "circle-blur": 0.45,
         },
       });
@@ -154,20 +158,22 @@ const SESN = (() => {
             4, ["case", ["==", ["get", "d"], 1], 7, 3],
             8, ["case", ["==", ["get", "d"], 1], 11, 6],
             12, ["case", ["==", ["get", "d"], 1], 15, 9]],
+          /* Mid-luminance, saturated colours, so every class reads on positron's grey
+             water and on the dark style's near-black alike. */
           "circle-color": [
             "case",
-            ["==", ["get", "d"], 1], "#fb5570",
-            ["==", ["get", "k"], 1], "#fbbf24",
-            ["==", ["get", "s"], 1], "#34d399",
-            ["==", ["get", "t"], 7], "#94a3b8",
-            ["==", ["get", "t"], 2], "#c084fc",
-            ["==", ["get", "t"], 0], "#38bdf8",
-            "#5b8fc7",
+            ["==", ["get", "d"], 1], "#ff2d55",
+            ["==", ["get", "k"], 1], "#ff8705",
+            ["==", ["get", "s"], 1], "#10b981",
+            ["==", ["get", "t"], 7], "#9ca3af",
+            ["==", ["get", "t"], 2], "#8b5cf6",
+            ["==", ["get", "t"], 0], "#1e9bd7",
+            "#5b6b8c",
           ],
           "circle-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.75, 6, 0.95],
           "circle-stroke-width": ["interpolate", ["linear"], ["zoom"],
             4, ["case", ["==", ["get", "d"], 1], 1.5, 0], 7, 1.5],
-          "circle-stroke-color": ["case", ["==", ["get", "d"], 1], "#ffe3e8", "#070b10"],
+          "circle-stroke-color": ["case", ["==", ["get", "d"], 1], "#ffffff", dark ? "#0d0d0d" : "#ffffff"],
         },
       });
     });

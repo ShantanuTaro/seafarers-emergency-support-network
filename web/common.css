@@ -1,216 +1,315 @@
 /* SESN design system.
-   One token set, three portals. The portals differ in density on purpose:
-   the ops console is dense because a watchkeeper scans it, the bridge portal is
-   large and calm because it gets read by someone who is having the worst day of
-   their career. */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+   Carried over from HS Code Lookup for Customs, so the two read as one family: black on
+   white, one faint grey surface, and the four-stop spectrum (cyan, blue, pink, orange)
+   used sparingly as the only decorative colour. Mono eyebrows, 12px card radii, pill
+   buttons, windows that rise out of a blurred page.
+
+   Every colour token holds its light and its dark value together in light-dark(), so a
+   page picks its theme by setting color-scheme and nothing is written twice. The landing
+   page, the bridge terminal and the control panel follow the viewer's system setting.
+   The operations console is dark always (html[data-theme="dark"]): it is watched through
+   the night.
+
+   One token set, three densities on purpose: the ops console is dense because a
+   watchkeeper scans it, the bridge terminal is large and calm because it gets read by
+   someone having the worst day of their career. */
+
+/* Inter and IBM Plex Mono, self-hosted under the SIL Open Font License 1.1 with the
+   licence texts beside the files, so no page makes a third-party font request. Latin and
+   latin-ext subsets only. Inter is variable, one file per subset covers 400-600; Plex
+   Mono ships a file per weight. */
+@font-face {
+  font-family: "Inter"; font-style: normal; font-weight: 400 600; font-display: swap;
+  src: url(/static/fonts/Inter-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Inter"; font-style: normal; font-weight: 400 600; font-display: swap;
+  src: url(/static/fonts/Inter-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url(/static/fonts/IBMPlexMono-400-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "IBM Plex Mono"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url(/static/fonts/IBMPlexMono-400-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url(/static/fonts/IBMPlexMono-500-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "IBM Plex Mono"; font-style: normal; font-weight: 500; font-display: swap;
+  src: url(/static/fonts/IBMPlexMono-500-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "IBM Plex Mono"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url(/static/fonts/IBMPlexMono-600-latin-ext.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "IBM Plex Mono"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url(/static/fonts/IBMPlexMono-600-latin.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 :root {
-  --bg: #070b10;
-  --surface: #0e141c;
-  --surface-2: #151f2b;
-  --surface-3: #1c2836;
-  --line: #22303f;
-  --line-bright: #33465c;
-  --ink: #e8f0fa;
-  --dim: #7f95ad;
-  --faint: #536477;
-  --accent: #38bdf8;
-  --accent-ink: #04141f;
-  --violet: #8b8cf8;
-  --ok: #34d399;
-  --warn: #fbbf24;
-  --danger: #fb5570;
-  --danger-glow: rgba(251, 85, 112, .25);
+  color-scheme: light dark;
+  --bg: light-dark(#fff, #0d0d0d);
+  --bg-alt: light-dark(#f5f5f5, #171717);
+  --ink: light-dark(#000, #fff);
+  --ink-2: light-dark(#3f3f3f, #c4c4c4);
+  --ink-3: light-dark(#6e6e6e, #8c8c8c);   /* HS runs #7f7f7f; darkened to hold 4.5:1 on the grey surface */
+  --ink-4: light-dark(#b8b8b8, #5f5f5f);
+  --line: light-dark(#e7e7e7, #262626);
+  --line-strong: light-dark(#dcdcdc, #333);
+  --accent: light-dark(#4b72fe, #83a3ff);
+  --accent-hover: light-dark(#3e18f9, #afc3ff);
+  --cyan: #37d7fa; --pink: #ff8df2; --orange: #ff8705;
+  --spectrum: linear-gradient(148deg, #37d7fa 0%, #4b72fe 40%, #ff8df2 68%, #ff8705 100%);
+  --spectrum-warn: linear-gradient(148deg, #ff2d55 0%, #ff5e3a 48%, #ff8705 100%);
+  --wash: linear-gradient(135deg, light-dark(#37d7fa14, #37d7fa1a),
+    light-dark(#ff8df20a, #ff8df20d) 55%, light-dark(#ff870514, #ff87051a));
 
-  --sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Status. Yes and no are the HS verdict pair. A severity scale needs four steps, so
+     SESN adds amber below the orange and red above it. Red also means distress and
+     nothing else, on the map and off it. */
+  --yes-bg: light-dark(#e4f9fe, #06232c);   --yes-ink: light-dark(#08728d, #61e2ff);
+  --amber-bg: light-dark(#fff7d6, #262006); --amber-ink: light-dark(#8a6100, #f2c14e);
+  --no-bg: light-dark(#fff2e2, #2a1a06);    --no-ink: light-dark(#a35200, #fba647);
+  --red-bg: light-dark(#ffe9ee, #2c0a12);   --red-ink: light-dark(#c8103a, #ff6b88);
+  --red: #d70f3c;                            /* solid; white type on it holds 5:1 */
 
-  --r: 10px;
-  --r-sm: 6px;
-  --shadow: 0 10px 34px rgba(0, 0, 0, .55);
+  --btn: light-dark(#000, #fff); --btn-ink: light-dark(#fff, #000);
+  --font: "Inter", -apple-system, BlinkMacSystemFont, system-ui, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --r-sm: 6px; --r-md: 12px; --r-lg: 20px; --r-pill: 999px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .03), 0 16px 40px -24px light-dark(rgba(0, 0, 0, .16), rgba(0, 0, 0, .8));
+  --shadow-lg: 0 30px 70px light-dark(rgba(0, 0, 0, .22), rgba(0, 0, 0, .6));
 }
+html[data-theme="dark"] { color-scheme: dark; }
 
-* { box-sizing: border-box; }
-
-html, body {
-  margin: 0; height: 100%;
-  background: var(--bg); color: var(--ink);
-  font-family: var(--sans);
-  font-size: 14px; line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
+*, *::before, *::after { box-sizing: border-box; }
+/* `hidden` has to win over any class that sets display (.btn is inline-flex), or a
+   control meant for signed-in users shows on the sign-in screen. */
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.55 var(--font);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
 }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--r-sm); }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+code { padding: 1px 5px; font: 12px var(--font-mono); background: var(--bg-alt); border-radius: var(--r-sm); }
 
-/* ---- simulation banner: constraint, not decoration --------------------- */
+/* ---- simulation banner: constraint, not decoration --------------------------
+
+   First thing on every page, never dismissible, never scrolled away. The HS "escalated"
+   treatment: an orange ground and a mono label behind a status dot. */
 
 .simbar {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 16px; font-size: 12px; font-weight: 600;
-  background: linear-gradient(90deg, rgba(251, 191, 36, .16), rgba(251, 191, 36, .04));
-  border-bottom: 1px solid rgba(251, 191, 36, .35);
-  color: #ffd66b; letter-spacing: .01em; flex: none;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; flex: none;
+  padding: 8px 20px; font-size: 12.5px; line-height: 1.45; color: var(--ink-2);
+  background: var(--no-bg); border-bottom: 1px solid color-mix(in srgb, var(--orange) 30%, transparent);
 }
-.simbar b { color: #ffe9a8; }
-.simbar .note { color: #c7b489; font-weight: 400; }
+.simbar b {
+  display: inline-flex; align-items: center; gap: 7px; color: var(--no-ink);
+  font: 500 11px/1.45 var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
+}
+.simbar b::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .simbar .spacer { flex: 1; }
-.simbar a { color: #ffd66b; text-decoration: none; border-bottom: 1px dotted currentColor; }
+#link {
+  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; color: var(--ink-3);
+  font: 500 11px/1.45 var(--font-mono); letter-spacing: .08em; text-transform: uppercase;
+}
 
 /* ---- chrome ------------------------------------------------------------ */
 
 .topbar {
-  display: flex; align-items: center; gap: 16px;
-  padding: 10px 16px; background: var(--surface);
-  border-bottom: 1px solid var(--line); flex: none;
+  display: flex; align-items: center; gap: 28px; flex: none; height: 60px; padding: 0 20px;
+  background: var(--bg); border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: center; gap: 9px; font-weight: 700; letter-spacing: -.01em; }
+.brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600;
+         letter-spacing: -.02em; line-height: 1.15; color: var(--ink); }
 .brand .mark {
-  width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center;
-  background: linear-gradient(140deg, var(--accent), var(--violet));
-  color: var(--accent-ink); font-size: 13px; font-weight: 800;
+  display: grid; place-items: center; flex: none; width: 24px; height: 24px;
+  border-radius: var(--r-sm); background: var(--spectrum); color: #fff;
+  font: 600 11px/1 var(--font-mono);
 }
-.brand small { display: block; font-size: 10px; font-weight: 500; color: var(--dim);
-               letter-spacing: .09em; text-transform: uppercase; line-height: 1; }
-.navlinks { display: flex; gap: 4px; margin-left: 10px; }
-.navlinks a {
-  padding: 6px 12px; border-radius: var(--r-sm); color: var(--dim);
-  text-decoration: none; font-size: 13px; font-weight: 500;
-}
-.navlinks a:hover { background: var(--surface-2); color: var(--ink); }
-.navlinks a.on { background: var(--surface-3); color: var(--ink); }
+.brand small { display: block; margin-top: 3px; color: var(--ink-3);
+               font: 500 10px/1 var(--font-mono); letter-spacing: .12em; text-transform: uppercase; }
+.navlinks { display: flex; gap: 2px; }
+.navlinks a { padding: 7px 14px; border-radius: var(--r-pill); font-size: 14px; color: var(--ink-2); }
+.navlinks a:hover { color: var(--ink); }
+.navlinks a.on { color: var(--ink); background: var(--bg-alt); }
 
 /* ---- layout ------------------------------------------------------------ */
 
-.shell { display: flex; flex-direction: column; height: 100%; }
-.body { flex: 1; display: flex; min-height: 0; }
+.shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.body { flex: 1; display: flex; min-height: 0; position: relative; }
+
+/* ---- sign-in gate ------------------------------------------------------
+   Mock: nothing is authenticated. It covers the console, never the simulation banner,
+   and exists so every screen behind it knows who is looking: a hull on the bridge, a
+   named person in the operations room. */
+.gate { position: absolute; inset: 0; z-index: 20; overflow-y: auto; padding: 44px 20px; background: var(--bg); }
+.gate-box { max-width: 900px; margin: 0 auto; }
+.gate h1 { margin: 6px 0 10px; font-size: 30px; }
+.gate .lede { max-width: 640px; margin: 0 0 24px; font-size: 15px; line-height: 1.6; color: var(--ink-2); }
+.gate-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.tile { display: block; width: 100%; padding: 15px 16px; text-align: left; font: inherit; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md); cursor: pointer;
+  transition: border-color .15s; }
+.tile:hover { border-color: var(--ink); }
+.tile strong { display: block; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.tile .sub { display: block; margin-top: 3px; font-size: 12.5px; line-height: 1.5; color: var(--ink-3); }
+.tile .sub.mono { font-size: 11.5px; }
 .rail {
-  width: 420px; flex: none; background: var(--surface);
-  border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0;
+  width: 420px; flex: none; display: flex; flex-direction: column; min-height: 0;
+  background: var(--bg); border-left: 1px solid var(--line);
 }
 .rail.left { border-left: 0; border-right: 1px solid var(--line); }
-.scroll { overflow-y: auto; padding: 16px; flex: 1; min-height: 0; }
-.scroll::-webkit-scrollbar { width: 9px; }
-.scroll::-webkit-scrollbar-thumb { background: var(--line-bright); border-radius: 9px; }
+.scroll { overflow-y: auto; padding: 20px; flex: 1; min-height: 0; }
 
 /* ---- type -------------------------------------------------------------- */
 
-h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: -.02em; }
-h2 { font-size: 15px; margin: 0 0 8px; letter-spacing: -.01em; }
-.eyebrow {
-  font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase;
-  color: var(--faint); margin: 0 0 8px;
+h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; letter-spacing: -.03em; }
+h2 { margin: 0 0 8px; font-size: 16px; font-weight: 600; letter-spacing: -.02em; }
+/* The eyebrow: mono, uppercase, wide-tracked. Every section label on every portal. */
+.eyebrow, label {
+  font: 500 11px/1.4 var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink-3);
 }
-.muted { color: var(--dim); font-size: 12.5px; }
-.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.eyebrow { margin: 0 0 10px; }
+label { display: block; margin: 18px 0 8px; }
+.muted { color: var(--ink-3); font-size: 13px; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
 /* ---- controls ---------------------------------------------------------- */
 
-input, select, textarea, .btn {
-  font-family: var(--sans); font-size: 13px;
-  background: var(--surface-2); color: var(--ink);
-  border: 1px solid var(--line); border-radius: var(--r-sm);
-  padding: 9px 11px; width: 100%; outline: none;
+input, textarea {
+  width: 100%; padding: 10px 14px; font: 14px/1.5 var(--font); color: var(--ink);
+  background: var(--bg-alt); border: 1px solid transparent; border-radius: var(--r-md);
+  caret-color: var(--accent); transition: border-color .15s, background .15s;
 }
-input:focus, select:focus, textarea:focus { border-color: var(--accent); }
-input::placeholder, textarea::placeholder { color: var(--faint); }
+input { border-radius: var(--r-pill); }
+textarea { resize: vertical; }
+input:focus, textarea:focus { outline: none; background: var(--bg); border-color: var(--accent); }
+input::placeholder, textarea::placeholder { color: var(--ink-3); }
+
+/* Pill buttons. Black is the action, an outline is the alternative, and red is only
+   ever distress or rejection. */
 .btn {
-  cursor: pointer; font-weight: 600; text-align: center; transition: .12s;
-  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; width: 100%;
+  padding: 12px 20px; font: 500 14px/1.1 var(--font); letter-spacing: -.01em; text-align: center;
+  color: var(--ink); background: transparent; border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill); cursor: pointer; transition: opacity .15s, border-color .15s, color .15s;
 }
-.btn:hover { border-color: var(--line-bright); }
-.btn:disabled { opacity: .45; cursor: not-allowed; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.btn.primary:hover { filter: brightness(1.1); }
-.btn.danger { background: var(--danger); border-color: var(--danger); color: #2a0008; }
-.btn.ghost { background: transparent; color: var(--dim); }
+.btn:hover { border-color: var(--ink); }
+.btn.primary { color: var(--btn-ink); background: var(--btn); border-color: transparent; }
+.btn.danger { color: #fff; background: var(--red); border-color: transparent; }
+.btn.primary:hover, .btn.danger:hover { opacity: .82; }
+.btn.ghost { color: var(--ink-3); border-color: transparent; }
 .btn.ghost:hover { color: var(--ink); }
-.btn.sm { padding: 5px 10px; font-size: 12px; width: auto; }
+.btn:disabled, .btn:disabled:hover { opacity: .4; cursor: not-allowed; }
+.btn.sm { width: auto; padding: 8px 14px; font-size: 13px; }
+.btn.lg { padding: 15px 22px; font-size: 15px; }
 .row { display: flex; gap: 8px; }
 .row > * { flex: 1; }
-label { display: block; font-size: 11px; font-weight: 600; color: var(--dim);
-        margin: 14px 0 5px; letter-spacing: .02em; }
 
 /* ---- cards, stats ------------------------------------------------------ */
 
 .card {
-  background: var(--surface-2); border: 1px solid var(--line);
-  border-radius: var(--r); padding: 13px; margin-bottom: 10px;
+  margin-bottom: 10px; padding: 14px 16px; background: var(--bg);
+  border: 1px solid var(--line); border-radius: var(--r-md);
 }
-.card.click { cursor: pointer; transition: .12s; }
-.card.click:hover { border-color: var(--line-bright); background: var(--surface-3); }
-.card.alert { border-color: rgba(251, 85, 112, .5); background: rgba(251, 85, 112, .07); }
+.card.click { cursor: pointer; transition: border-color .15s; }
+.card.click:hover { border-color: var(--ink); }
+.card.alert { border-left: 3px solid var(--red); }
 
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 8px; }
-.stat { background: var(--surface-2); border: 1px solid var(--line);
-        border-radius: var(--r); padding: 11px 12px; }
-.stat .n { font-family: var(--mono); font-size: 21px; font-weight: 700;
-           letter-spacing: -.02em; line-height: 1.15; }
-.stat .l { font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
-           color: var(--faint); font-weight: 600; margin-top: 2px; }
-.stat.danger .n { color: var(--danger); }
-.stat.warn .n { color: var(--warn); }
-.stat.ok .n { color: var(--ok); }
+.stat { padding: 12px 14px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md); }
+.stat .n { font: 600 22px/1.2 var(--font-mono); letter-spacing: -.03em; color: var(--ink); }
+.stat .l { margin-top: 4px; font-size: 12px; color: var(--ink-3); }
+.stat.danger .n { color: var(--red-ink); }
+.stat.warn .n { color: var(--no-ink); }
+.stat.ok .n { color: var(--yes-ink); }
 
-.kv { display: grid; grid-template-columns: 132px 1fr; gap: 3px 10px; font-size: 12.5px; }
-.kv dt { color: var(--dim); }
-.kv dd { margin: 0; font-family: var(--mono); font-size: 12px; }
+.kv { display: grid; grid-template-columns: 132px 1fr; gap: 4px 12px; font-size: 13px; }
+.kv dt { color: var(--ink-3); }
+.kv dd { margin: 0; font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); }
 
-/* ---- severity, pills --------------------------------------------------- */
+/* ---- pills: the HS verdict, mono and uppercase behind a dot ------------- */
 
 .pill {
-  display: inline-block; padding: 2px 8px; border-radius: 20px;
-  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; vertical-align: middle;
+  border-radius: var(--r-pill); font: 500 10.5px/1.2 var(--font-mono); letter-spacing: .08em;
+  text-transform: uppercase; white-space: nowrap; background: var(--bg-alt); color: var(--ink-3);
 }
-.sev-1 { background: rgba(52, 211, 153, .16); color: var(--ok); }
-.sev-2 { background: rgba(251, 191, 36, .16); color: var(--warn); }
-.sev-3 { background: rgba(251, 146, 60, .18); color: #fb923c; }
-.sev-4 { background: rgba(251, 85, 112, .2); color: var(--danger); }
-.pill.pending { background: rgba(251, 191, 36, .16); color: var(--warn); }
-.pill.approved { background: rgba(52, 211, 153, .16); color: var(--ok); }
-.pill.rejected { background: var(--surface-3); color: var(--dim); }
-.pill.ghost { background: var(--surface-3); color: var(--dim); }
+.pill::before { content: ""; width: 5px; height: 5px; flex: none; border-radius: 50%; background: currentColor; }
+.sev-1, .pill.approved { background: var(--yes-bg); color: var(--yes-ink); }
+.sev-2, .pill.pending { background: var(--amber-bg); color: var(--amber-ink); }
+.sev-3 { background: var(--no-bg); color: var(--no-ink); }
+.sev-4 { background: var(--red-bg); color: var(--red-ink); }
 
 .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-.dot.live { background: var(--ok); box-shadow: 0 0 0 3px rgba(52, 211, 153, .18); }
-.dot.off { background: var(--danger); }
+.dot.live { background: var(--yes-ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--yes-ink) 22%, transparent); }
+.dot.off { background: var(--red); }
 
-/* ---- packets ----------------------------------------------------------- */
-
-.packet { border: 1px solid var(--line); border-radius: var(--r);
-          background: var(--surface-2); margin-bottom: 11px; overflow: hidden; }
-.packet > header { display: flex; justify-content: space-between; align-items: flex-start;
-                   gap: 10px; padding: 11px 13px; background: var(--surface-3); }
-.packet .cls { font-size: 9.5px; font-weight: 800; letter-spacing: .11em;
-               text-transform: uppercase; color: var(--accent); }
-.packet .to { font-size: 12.5px; font-weight: 600; margin-top: 2px; }
-.packet .inner { padding: 12px 13px; }
 pre {
-  font-family: var(--mono); font-size: 11.5px; line-height: 1.6;
-  background: #05090e; border: 1px solid var(--line); border-radius: var(--r-sm);
-  padding: 11px; margin: 8px 0; white-space: pre-wrap; word-break: break-word;
-  max-height: 280px; overflow: auto; color: #c3d4e6;
+  margin: 8px 0; padding: 14px 16px; max-height: 280px; overflow: auto;
+  white-space: pre-wrap; word-break: break-word; font: 12px/1.65 var(--font-mono); color: var(--ink-2);
+  background: var(--bg-alt); border: 1px solid var(--line); border-radius: var(--r-md);
 }
+
+/* The HS disclaimer. It sits against the thing it qualifies, never in a footer. */
+.disclaimer {
+  margin: 14px 0 0; padding: 12px 16px; font-size: 13px; line-height: 1.6; color: var(--ink-2);
+  background: var(--bg-alt); border: 1px solid var(--line); border-left: 3px solid var(--orange);
+  border-radius: var(--r-md);
+}
+.disclaimer > span:first-child {
+  display: block; margin-bottom: 4px; color: var(--no-ink);
+  font: 500 10px/1.4 var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
+}
+.disclaimer b { color: var(--ink); font-weight: 600; }
 
 /* ---- map --------------------------------------------------------------- */
 
 .mapwrap { flex: 1; position: relative; min-width: 0; }
 .mapwrap .overlay {
-  position: absolute; z-index: 5; background: rgba(14, 20, 28, .9);
-  border: 1px solid var(--line); border-radius: var(--r);
-  backdrop-filter: blur(10px); box-shadow: var(--shadow);
+  position: absolute; z-index: 5; background: color-mix(in srgb, var(--bg) 90%, transparent);
+  border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
 }
-.legend { bottom: 14px; left: 14px; padding: 10px 12px; font-size: 11px; }
-.legend .item { display: flex; align-items: center; gap: 7px; margin-top: 4px; color: var(--dim); }
-.mapstats { top: 14px; left: 14px; padding: 9px 13px; font-size: 11.5px; }
-.maplibregl-popup-content {
-  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-bright);
-  border-radius: var(--r); font-family: var(--sans); font-size: 12.5px; padding: 12px 14px;
-  box-shadow: var(--shadow);
+.legend { bottom: 14px; left: 14px; padding: 12px 14px; font-size: 12px; }
+.legend .eyebrow { margin: 0 0 4px; }
+.legend .item { display: flex; align-items: center; gap: 8px; margin-top: 5px; color: var(--ink-2); }
+.mapstats { top: 14px; left: 14px; padding: 9px 14px; font-size: 12px; }
+.maplibregl-ctrl-group {
+  background: var(--bg) !important; border: 1px solid var(--line);
+  border-radius: var(--r-md) !important; box-shadow: var(--shadow) !important; overflow: hidden;
 }
-.maplibregl-popup-tip { border-top-color: var(--line-bright) !important; }
-.maplibregl-popup-close-button { color: var(--dim); font-size: 17px; }
-.maplibregl-ctrl-group { background: var(--surface-2) !important; border: 1px solid var(--line); }
-.maplibregl-ctrl-group button span { filter: invert(85%); }
+.maplibregl-ctrl-group button + button { border-top-color: var(--line) !important; }
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
+  color: var(--ink-3); background: color-mix(in srgb, var(--bg) 85%, transparent) !important;
+}
+.maplibregl-ctrl-attrib a { color: var(--ink-2); }
+/* MapLibre draws its control icons in black. Flip them on a dark page, however it got dark. */
+html[data-theme="dark"] :is(.maplibregl-ctrl-icon, .maplibregl-ctrl-attrib-button) { filter: invert(1); }
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme]) :is(.maplibregl-ctrl-icon, .maplibregl-ctrl-attrib-button) { filter: invert(1); }
+}
 
 /* ---- bridge (seafarer) portal: bigger, calmer -------------------------- */
 
@@ -228,76 +327,98 @@ body[data-portal="bridge"] .rail.left { width: 480px; }
   body[data-portal="bridge"] .rail { width: 320px; }
   body[data-portal="bridge"] .rail.left { width: 340px; }
 }
-body[data-portal="bridge"] h1 { font-size: 26px; }
 .bigstate {
-  border-radius: 14px; padding: 20px; margin-bottom: 14px;
-  border: 1px solid var(--line); background: var(--surface-2);
+  margin-bottom: 14px; padding: 22px; background: var(--bg);
+  border: 1px solid var(--line); border-radius: var(--r-lg);
 }
-.bigstate .state { font-size: 12px; font-weight: 700; letter-spacing: .1em;
-                   text-transform: uppercase; color: var(--dim); }
-.bigstate .head { font-size: 23px; font-weight: 700; letter-spacing: -.02em; margin: 6px 0 8px; }
-.bigstate.calm { border-color: rgba(52, 211, 153, .4); background: rgba(52, 211, 153, .07); }
-.bigstate.calm .head { color: var(--ok); }
-.bigstate.wait { border-color: rgba(251, 191, 36, .45); background: rgba(251, 191, 36, .08); }
-.bigstate.wait .head { color: var(--warn); }
-.bigstate.alarm { border-color: rgba(251, 85, 112, .55); background: rgba(251, 85, 112, .1); }
-.bigstate.alarm .head { color: var(--danger); }
+.bigstate .state { font: 500 11px/1.4 var(--font-mono); letter-spacing: .12em;
+                   text-transform: uppercase; color: var(--ink-3); }
+.bigstate .head { margin: 8px 0; font-size: 26px; font-weight: 600; letter-spacing: -.03em; line-height: 1.15; }
+.bigstate.calm { background: var(--yes-bg); border-color: color-mix(in srgb, var(--yes-ink) 25%, transparent); }
+.bigstate.calm .head { color: var(--yes-ink); }
+.bigstate.wait { background: var(--no-bg); border-color: color-mix(in srgb, var(--orange) 35%, transparent); }
+.bigstate.wait .head { color: var(--no-ink); }
+.bigstate.alarm { background: var(--red-bg); border-color: color-mix(in srgb, var(--red) 35%, transparent); }
+.bigstate.alarm .head { color: var(--red-ink); }
 
-.distress-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+.distress-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .distress-btn {
-  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink);
-  border-radius: var(--r); padding: 14px 12px; cursor: pointer; text-align: left;
-  font-family: var(--sans); font-size: 14px; font-weight: 600; transition: .12s;
+  padding: 14px 16px; text-align: left; cursor: pointer; color: var(--ink);
+  font: 500 14.5px/1.35 var(--font); background: var(--bg); border: 1px solid var(--line);
+  border-radius: var(--r-md); transition: border-color .15s, background .15s;
 }
-.distress-btn:hover { border-color: var(--danger); background: rgba(251, 85, 112, .1); }
-.distress-btn small { display: block; font-weight: 400; font-size: 11px;
-                      color: var(--dim); margin-top: 3px; }
+.distress-btn:hover { border-color: var(--red); background: var(--red-bg); }
+.distress-btn small { display: block; margin-top: 4px; font-size: 12px; font-weight: 400; color: var(--ink-3); }
 
-/* ---- dialog: ours, not the browser's ----------------------------------- */
+/* ---- windows -----------------------------------------------------------
 
+   Native <dialog>, as in HS: the top layer, the backdrop, the focus trap and Escape come
+   with the element, and none of that is worth hand-rolling. A window rises out of a
+   blurred page rather than appearing on top of it. */
+
+dialog {
+  width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; overflow: hidden;
+  color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
+}
+dialog[open], .modal .box { animation: rise .22s ease-out; }
+dialog:focus-visible { outline: none; }
+dialog::backdrop { background: rgba(0, 0, 0, .4); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.98); } }
+.dlg-head {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 16px;
+  padding: 18px 22px 16px; border-bottom: 1px solid var(--line);
+}
+.dlg-ttl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 4px;
+           font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
+.x {
+  display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 0;
+  font: 400 19px/1 var(--font); color: var(--ink-3); background: var(--bg); cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--r-pill);
+}
+.x:hover { color: var(--ink); border-color: var(--line-strong); }
+
+/* Confirmations and notices from SESN.dialog: ours, not the browser's. */
 .modal {
-  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
-  background: rgba(3, 6, 10, .72); backdrop-filter: blur(3px); padding: 20px;
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 20px;
+  background: rgba(0, 0, 0, .4); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
 }
 .modal .box {
-  width: 100%; max-width: 460px; background: var(--surface);
-  border: 1px solid var(--line-bright); border-radius: 14px;
-  padding: 20px 22px; box-shadow: var(--shadow);
+  width: 100%; max-width: 460px; padding: 24px 26px; background: var(--bg);
+  border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-lg);
 }
-.modal h2 { font-size: 18px; letter-spacing: -.02em; margin: 0 0 8px; }
-.modal .text { color: var(--dim); font-size: 13.5px; white-space: pre-line; }
-.modal .row > * { flex: 1; }
+.modal h2 { margin: 0 0 8px; font-size: 18px; }
+.modal .text { color: var(--ink-2); font-size: 14px; white-space: pre-line; }
 
 /* ---- vessel inspector, the click target on the map --------------------- */
 
 .inspector {
-  right: 14px; bottom: 14px; width: 330px; max-height: calc(100% - 28px);
+  right: 14px; bottom: 14px; width: 340px; max-height: calc(100% - 28px);
   display: none; flex-direction: column; overflow: hidden;
 }
 .inspector.on { display: flex; }
-.inspector > header { padding: 12px 13px 11px; border-bottom: 1px solid var(--line); }
-.inspector .body-scroll { overflow-y: auto; padding: 12px 13px; }
-.inspector .x { background: none; border: 0; color: var(--dim); font-size: 18px;
-                cursor: pointer; line-height: 1; padding: 0 2px; }
+.inspector > header { padding: 14px 16px 12px; border-bottom: 1px solid var(--line); }
+.inspector .body-scroll { overflow-y: auto; padding: 14px 16px; }
 
 /* ---- message thread ---------------------------------------------------- */
 
-.thread { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; }
-.msg { max-width: 88%; padding: 8px 11px; border-radius: 11px; font-size: 13px;
-       border: 1px solid var(--line); background: var(--surface-2); }
-.msg .who { font-size: 10px; font-weight: 700; letter-spacing: .07em;
-            text-transform: uppercase; color: var(--faint); margin-bottom: 2px; }
-.msg.shore { align-self: flex-start; border-color: rgba(56, 189, 248, .4);
-             background: rgba(56, 189, 248, .09); }
-.msg.vessel { align-self: flex-end; border-color: var(--line-bright); }
+.thread { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.msg { max-width: 88%; padding: 9px 12px; font-size: 13.5px; line-height: 1.5;
+       background: var(--bg-alt); border: 1px solid var(--line); border-radius: var(--r-md); }
+.msg .who { margin-bottom: 3px; font: 500 10px/1.4 var(--font-mono); letter-spacing: .1em;
+            text-transform: uppercase; color: var(--ink-3); }
+.msg.shore { align-self: flex-start; background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+             border-color: color-mix(in srgb, var(--accent) 28%, var(--line)); }
 .msg.shore .who { color: var(--accent); }
+.msg.vessel { align-self: flex-end; }
 
 /* ---- misc -------------------------------------------------------------- */
 
-.empty { text-align: center; padding: 40px 16px; color: var(--faint); }
-.empty .big { font-size: 30px; opacity: .3; }
-a.plain { color: var(--accent); text-decoration: none; }
+.empty { text-align: center; padding: 40px 16px; color: var(--ink-3); }
+.empty .big { font-size: 30px; opacity: .35; }
 a.plain:hover { text-decoration: underline; }
 .split { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-.spin { animation: sp 1s linear infinite; display: inline-block; }
-@keyframes sp { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

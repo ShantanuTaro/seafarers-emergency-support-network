@@ -1,20 +1,21 @@
 <!doctype html>
-<html lang="en"><head>
+<html lang="en" data-theme="dark"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SESN Operations</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<link rel="icon" href="/static/favicon.svg">
 <link rel="stylesheet" href="/static/common.css">
 <style>
-  .tabs { display: flex; border-bottom: 1px solid var(--line); flex: none; }
-  .tabs button { flex: 1; background: none; border: 0; border-bottom: 2px solid transparent;
-    color: var(--dim); padding: 11px 8px; font: 600 12.5px var(--sans); cursor: pointer; }
-  .tabs button.on { color: var(--ink); border-bottom-color: var(--accent); background: var(--surface-2); }
-  .tabs .count { font-family: var(--mono); font-size: 11px; color: var(--warn); }
+  .tabs { display: flex; flex: none; border-bottom: 1px solid var(--line); }
+  .tabs button { flex: 1; padding: 14px 8px 12px; background: none; border: 0;
+    border-bottom: 2px solid transparent; color: var(--ink-3); font: 500 13px/1 var(--font);
+    cursor: pointer; }
+  .tabs button:hover { color: var(--ink); }
+  /* The spectrum, once on this screen: under the open tab. */
+  .tabs button.on { color: var(--ink); border-image: var(--spectrum) 1; }
+  .tabs .count { margin-left: 4px; font: 500 11px var(--font-mono); color: var(--amber-ink); }
   .pane { display: none; } .pane.on { display: block; }
-  .opsbar { display: flex; gap: 10px; align-items: center; padding: 10px 16px;
-            border-bottom: 1px solid var(--line); background: var(--surface); flex: none; }
-  .opsbar input { width: 220px; }
 
   /* ---- review dialog ---------------------------------------------------
 
@@ -22,78 +23,82 @@
      overlay would have to reimplement all three. The queue stays mounted behind it
      and the rail lists every other pending incident, so a casualty arriving while
      an operator is reading one is still on the screen.                          */
-  dialog#review { width: min(1060px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
-    padding: 0; border: 1px solid var(--line-bright); border-radius: 14px; overflow: hidden;
-    background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
-  dialog#review::backdrop { background: rgba(3,6,10,.72); backdrop-filter: blur(3px); }
-  .rv-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px;
-    padding: 13px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
-  .rv-ttl { display: flex; align-items: center; gap: 9px; font-size: 16px; font-weight: 700;
-    letter-spacing: -.01em; margin-bottom: 3px; }
-  .rv-head .x { background: none; border: 0; color: var(--dim); font-size: 19px; width: 26px;
-    padding: 0; cursor: pointer; }
-  .rv-head .x:hover { color: var(--ink); }
+  dialog#review { width: min(1060px, calc(100vw - 32px)); }
   .rv-body { display: grid; grid-template-columns: 268px 1fr; }
-  .rv-steps { border-right: 1px solid var(--line); background: var(--surface-2);
-    padding: 8px 10px 14px; overflow: auto; max-height: calc(100vh - 132px); }
-  .rv-pane { padding: 16px 18px 20px; overflow: auto; max-height: calc(100vh - 132px); }
-  .rv-grp { font-size: 9.5px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase;
-    color: var(--accent); margin: 12px 2px 2px; }
-  .rv-note { font-size: 11px; line-height: 1.45; color: var(--faint); margin: 0 2px 7px; }
-  .rv-step { display: block; width: 100%; text-align: left; font: inherit; cursor: pointer;
-    background: var(--surface); color: var(--ink); border: 1px solid var(--line);
-    border-radius: var(--r-sm); padding: 8px 9px; margin-bottom: 6px; }
-  .rv-step:hover { border-color: var(--line-bright); }
-  .rv-step.on { border-color: var(--accent); background: var(--surface-3); }
-  .rv-step .lbl { display: block; font-size: 12.5px; font-weight: 600; margin-top: 4px; }
-  .rv-step .to { display: block; font-size: 11px; color: var(--dim); }
-  .rv-bulk { width: 100%; margin: 3px 0 2px; }
-  .rv-crumb { font-size: 10px; font-weight: 800; letter-spacing: .1em; color: var(--faint); }
-  .rv-crumb .held { color: var(--warn); }
-  .rv-cls { font-size: 9.5px; font-weight: 800; letter-spacing: .11em; text-transform: uppercase;
-    color: var(--accent); margin-top: 9px; }
-  .rv-to { font-size: 15px; font-weight: 700; }
+  .rv-steps { padding: 10px 12px 16px; overflow: auto; max-height: calc(100vh - 140px);
+    background: var(--bg-alt); border-right: 1px solid var(--line); }
+  .rv-pane { padding: 20px 24px 24px; overflow: auto; max-height: calc(100vh - 140px); }
+  .rv-grp { margin: 16px 2px 3px; font: 500 10.5px/1.4 var(--font-mono); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--ink); }
+  .rv-note { margin: 0 2px 8px; font-size: 11.5px; line-height: 1.45; color: var(--ink-3); }
+  .rv-step { display: block; width: 100%; margin-bottom: 6px; padding: 10px 12px; text-align: left;
+    font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+    border-radius: var(--r-md); cursor: pointer; transition: border-color .15s; }
+  .rv-step:hover { border-color: var(--line-strong); }
+  .rv-step.on { border-color: var(--ink); }
+  .rv-step .lbl { display: block; margin-top: 6px; font-size: 13px; font-weight: 600; }
+  .rv-step .to { display: block; font-size: 11.5px; color: var(--ink-3); }
+  .rv-bulk { width: 100%; margin: 4px 0 2px; }
+  .rv-crumb { font: 500 10.5px/1.4 var(--font-mono); letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); }
+  .rv-crumb .held { color: var(--no-ink); }
+  .rv-cls { margin-top: 10px; font: 500 11px/1.4 var(--font-mono); letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent); }
+  .rv-to { font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
   /* Who this recipient actually is. An operator releasing a message to "MRCC SIM-TASMAN"
      should not have to already know that this is a shore watch room rather than a ship. */
-  .rv-who { margin: 6px 0 0; font-size: 12px; line-height: 1.55; color: var(--dim);
-    border-left: 2px solid var(--line); padding-left: 9px; }
-  .rv-warn { margin-top: 10px; padding: 9px 11px; border-radius: var(--r-sm); font-size: 12px;
-    line-height: 1.5; border: 1px solid rgba(251,191,36,.35); background: rgba(251,191,36,.08);
-    color: var(--warn); }
-  .rv-confirm { margin-top: 12px; padding: 12px 13px; border: 1px solid var(--accent);
-    border-radius: var(--r-sm); background: var(--surface-2); font-size: 12.5px; line-height: 1.55; }
-  .rv-done { margin-top: 12px; font-size: 12.5px; font-weight: 600; color: var(--ok); }
-  .rv-err { margin-bottom: 10px; font-size: 12px; font-weight: 600; color: var(--danger); }
+  .rv-who { margin: 8px 0 0; padding-left: 12px; font-size: 13px; line-height: 1.6; color: var(--ink-2);
+    border-left: 2px solid var(--line-strong); }
+  .btn.go { color: #fff; background: #16a34a; border-color: transparent; }
+  .btn.go:hover { background: #15803d; opacity: 1; }
+  .rv-decide { margin-top: 14px; padding: 12px 14px; font-size: 14px; font-weight: 600; line-height: 1.5;
+    background: var(--bg-alt); border: 1px solid var(--line-strong); border-radius: var(--r-md); }
+  .rv-decide span { display: block; margin-bottom: 4px; font: 500 10.5px/1.4 var(--font-mono);
+    letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .rv-chain { counter-reset: none; }
+  .rv-chain .tag { width: 92px; }
+  .rv-chain li.b-classification { border-left-color: var(--accent); }
+  .rv-chain li.b-classification .tag { color: var(--accent); }
+  .rv-brief { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 14px; }
+  .rv-brief > div { padding: 10px 12px; background: var(--bg-alt); border: 1px solid var(--line); border-radius: var(--r-md); }
+  .rv-brief p:last-child { margin: 4px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
+  .rv-brief .eyebrow { margin: 0; }
+  .rv-facts { grid-template-columns: 110px 1fr; margin: 4px 0 0; }
+  .rv-confirm { margin-top: 14px; padding: 14px 16px; font-size: 13px; line-height: 1.6;
+    background: var(--bg-alt); border: 1px solid var(--accent); border-radius: var(--r-md); }
+  .rv-done { margin-top: 14px; font-size: 13px; font-weight: 600; color: var(--yes-ink); }
+  .rv-err { margin-bottom: 12px; font-size: 13px; font-weight: 600; color: var(--red-ink); }
   @media (max-width: 860px) {
     .rv-body { grid-template-columns: 1fr; }
-    .rv-steps { border-right: 0; border-bottom: 1px solid var(--line); max-height: 190px; }
+    .rv-steps { max-height: 190px; border-right: 0; border-bottom: 1px solid var(--line); }
   }
-  .rv-unk { margin: 0; padding-left: 18px; color: var(--warn); font-size: 12.5px; line-height: 1.65; }
-  .rv-rec { margin: 0; padding: 0; list-style: none; counter-reset: rec; }
-  .rv-rec li { display: flex; gap: 9px; align-items: baseline; padding: 7px 10px; margin-bottom: 5px;
-    border-radius: var(--r-sm); background: var(--surface-2); border-left: 2px solid var(--line);
-    font-size: 12.5px; line-height: 1.55; }
-  .rv-rec .tag { flex: none; font-size: 9px; font-weight: 800; letter-spacing: .09em;
-    text-transform: uppercase; color: var(--faint); width: 52px; }
-  .rv-rec .u-now, .rv-rec li.u-now { border-left-color: var(--accent); }
+  .rv-unk { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; color: var(--no-ink); }
+  .rv-rec { margin: 0; padding: 0; list-style: none; }
+  .rv-rec li { display: flex; gap: 10px; align-items: baseline; margin-bottom: 6px; padding: 8px 12px;
+    font-size: 13px; line-height: 1.55; background: var(--bg-alt);
+    border-left: 2px solid var(--line-strong); border-radius: var(--r-sm); }
+  .rv-rec .tag { flex: none; width: 58px; font: 500 10px/1.5 var(--font-mono); letter-spacing: .08em;
+    text-transform: uppercase; color: var(--ink-3); }
+  .rv-rec li.u-now { border-left-color: var(--accent); }
   .rv-rec li.u-now .tag { color: var(--accent); }
-  .rv-rec li.u-caution { border-left-color: var(--warn); background: rgba(251,191,36,.07); }
-  .rv-rec li.u-caution .tag, .rv-rec li.u-caution span { color: var(--warn); }
-  .rv-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .rv-tbl th { text-align: left; font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase;
-    color: var(--faint); font-weight: 800; padding: 0 8px 5px 0; }
-  .rv-tbl td { padding: 5px 8px 5px 0; border-top: 1px solid var(--line); }
-  .rv-tbl tr.on td { background: rgba(56,189,248,.06); }
-  .rv-tbl .pill { font-size: 9px; padding: 1px 6px; }
-  .rv-cta { position: sticky; bottom: -20px; margin-top: 16px; padding: 10px 0 4px;
-    background: linear-gradient(to top, var(--surface) 72%, transparent); }
-  .pill.armed { background: rgba(192,132,252,.18); color: #c084fc; }
+  .rv-rec li.u-caution { background: var(--no-bg); border-left-color: var(--orange); }
+  .rv-rec li.u-caution .tag, .rv-rec li.u-caution span { color: var(--no-ink); }
+  .rv-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .rv-tbl th { padding: 0 8px 8px 0; text-align: left; font: 500 10px/1.4 var(--font-mono);
+    letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+    border-bottom: 1px solid var(--line-strong); }
+  .rv-tbl td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--line); }
+  .rv-tbl tr.on td { background: var(--bg-alt); }
+  .rv-tbl .pill { padding: 2px 7px; font-size: 9.5px; }
+  .rv-cta { position: sticky; bottom: -24px; margin-top: 18px; padding: 12px 0 6px;
+    background: linear-gradient(to top, var(--bg) 72%, transparent); }
+  .pill.armed { background: color-mix(in srgb, var(--pink) 18%, var(--bg)); color: light-dark(#a3168c, #ff8df2); }
 </style></head>
 <body>
 <div class="shell">
   <div class="simbar">
-    <span>⚠</span><b>SIMULATED TRAFFIC, NOT A LIVE FEED</b>
-    <span class="note">Supplementary to GMDSS, never a replacement. Nothing transmits without approval.</span>
+    <b>Simulated traffic, not a live feed</b>
+    <span class="note">Decision support only. Supplementary to GMDSS, never a replacement. Nothing transmits without approval.</span>
     <span class="spacer"></span>
     <span id="link"><span class="dot off"></span> connecting</span>
   </div>
@@ -104,10 +109,27 @@
       <a href="/vessel">Seafarer</a><a href="/ops" class="on">Operations</a><a href="/control">Control</a>
     </nav>
     <div style="flex:1"></div>
-    <input id="operator" placeholder="Operator name, required to approve" style="width:280px">
+    <span class="muted" id="whoami"></span>
+    <button class="btn sm" id="signout" onclick="signOut()" hidden>Sign out</button>
   </div>
 
   <div class="body">
+    <div class="gate" id="gate">
+      <div class="gate-box">
+        <p class="eyebrow">Operations room · watch sign-in</p>
+        <h1>Who is on watch?</h1>
+        <p class="lede">A mock sign-in, no password. The name you pick is the name every
+        approval, rejection and bridge message is recorded against in the audit log, so pick
+        whoever is actually at the desk. Roles are labels only: every agent sees the same
+        console.</p>
+        <div class="gate-grid" id="agents"></div>
+        <label for="agent-other" style="margin-top:26px">Someone else</label>
+        <div class="row" style="max-width:560px">
+          <input id="agent-other" placeholder="Your name as it should appear in the audit log" autocomplete="off">
+          <button class="btn primary" style="flex:none;width:auto" onclick="signInOther()">Take the watch</button>
+        </div>
+      </div>
+    </div>
     <div class="mapwrap">
       <div id="map" style="position:absolute;inset:0"></div>
       <div class="overlay mapstats">
@@ -117,12 +139,12 @@
       </div>
       <div class="overlay inspector" id="inspector"></div>
       <div class="overlay legend">
-        <div style="font-weight:700;font-size:10px;letter-spacing:.1em;color:var(--faint)">LEGEND</div>
-        <div class="item"><span class="dot" style="background:#fb5570"></span> in distress</div>
-        <div class="item"><span class="dot" style="background:#fbbf24"></span> AIS dark</div>
-        <div class="item"><span class="dot" style="background:#34d399"></span> SAR capable</div>
-        <div class="item"><span class="dot" style="background:#38bdf8"></span> container</div>
-        <div class="item"><span class="dot" style="background:#5b8fc7"></span> other merchant</div>
+        <p class="eyebrow">Legend</p>
+        <div class="item"><span class="dot" style="background:#ff2d55"></span> in distress</div>
+        <div class="item"><span class="dot" style="background:#ff8705"></span> AIS dark</div>
+        <div class="item"><span class="dot" style="background:#10b981"></span> SAR capable</div>
+        <div class="item"><span class="dot" style="background:#1e9bd7"></span> container</div>
+        <div class="item"><span class="dot" style="background:#5b6b8c"></span> other merchant</div>
       </div>
     </div>
 
@@ -229,7 +251,8 @@ const stepsOf = i => i.packets.map((p, n) => ({ p, n }))
   .sort((a, b) => (RANK[a.p.recipient_class] ?? 9) - (RANK[b.p.recipient_class] ?? 9));
 const undecided = s => !s.p.approved && !s.p.rejected;
 const isHeld = s => HELD.has(s.p.recipient_class);
-const operatorName = () => document.getElementById("operator").value.trim();
+let agent = null;   // who is on watch, set by the sign-in gate
+const operatorName = () => agent?.name || "";
 
 async function loadQueue() {
   incidents = await SESN.api("/api/incidents");
@@ -304,9 +327,9 @@ function renderReview() {
   const others = incidents.filter(x => x.id !== i.id && stepsOf(x).some(undecided));
 
   SESN.repaint($("#review"), `
-    <div class="rv-head">
+    <div class="dlg-head">
       <div>
-        <div class="rv-ttl">${esc(i.vessel_name)}
+        <div class="dlg-ttl">${esc(i.vessel_name)}
           <span class="pill sev-${t.severity}">${SEV[t.severity]}</span></div>
         <div class="muted" style="font-size:11.5px">${t.type} · confidence
           ${t.confidence.toFixed(2)} · ${esc(t.provider)} · ${i.mmsi} ·
@@ -314,8 +337,8 @@ function renderReview() {
           ${i.telemetry.speedKn} kn · ${NAV[i.telemetry.navStatus] || i.telemetry.navStatus}</div>
       </div>
       <div style="display:flex;gap:8px;align-items:center">
-        <input placeholder="Operator name" value="${esc($("#operator").value)}" style="width:180px"
-               oninput="document.getElementById('operator').value = this.value">
+        <span class="muted" style="font-size:12px">on watch
+          <b style="color:var(--ink)">${esc(operatorName())}</b></span>
         <button class="x" onclick="closeReview()" title="close">×</button>
       </div>
     </div>
@@ -342,6 +365,7 @@ const railStep = (i, st, s) => {
     <span class="pill ${p.approved ? "approved" : p.rejected ? "rejected" : "pending"}">
       ${p.approved ? "released" : p.rejected ? "rejected" : "pending"}</span>
     <span class="lbl">${labelOf(i, p)}</span>
+    <span class="to">${ACTION[p.recipient_class] || ""}</span>
     <span class="to">${esc(p.recipient_name)}</span>
   </button>`;
 };
@@ -358,7 +382,7 @@ const rail = (i, st, opOpen, others) => `
   <div class="rv-grp">Operational</div>
   <div class="rv-note">Gets someone moving. One decision, so these can go together.</div>
   ${st.filter(s => !isHeld(s)).map(s => railStep(i, st, s)).join("")}
-  ${opOpen.length > 1 ? `<button class="btn primary sm rv-bulk" onclick="askConfirm('bulk')">
+  ${opOpen.length > 1 ? `<button class="btn go sm rv-bulk" onclick="askConfirm('bulk')">
      Approve &amp; release all ${opOpen.length}</button>` : ""}
   <div class="rv-grp">Held</div>
   <div class="rv-note">A company decision, not a rescue one. Always one at a time.</div>
@@ -377,6 +401,74 @@ const HELD_NOTE = {
     + "the company, not to a responder, and it is not what gets a ship moving.",
 };
 
+/* What each draft is for, what it asks, and what release changes. The body below is
+   the wire text; this is the part an operator reads to know what they are signing. */
+const STEP_BRIEF = {
+  mrcc: {
+    asks: "Take coordination, confirm the classification, and task assets through its own "
+        + "chain. It does not ask the MRCC to accept this system's picks.",
+    after: "Every later message cites this one. The bridge sees the rescue centre was "
+         + "notified, with your name against it.",
+  },
+  naval: {
+    asks: "Consider proceeding to the casualty. A request for tasking, not an order: the "
+        + "MRCC and the asset's own command decide.",
+    after: "The bridge is told this asset has been asked, with its live range and ETA.",
+  },
+  merchant: {
+    asks: "Divert if able, report to the MRCC either way, and heed the hazards listed.",
+    after: "The bridge sees this ship has been asked. A refusal is still an answer.",
+  },
+  manager: {
+    asks: "Take the company response: insurers, P&I, salvage, and the next-of-kin decision.",
+    after: "Recorded as sent to the company. Nothing reaches a responder from this step.",
+  },
+  next_of_kin: {
+    asks: "Nothing, yet. A welfare officer rewrites and sends it themselves.",
+    after: "Marked handed to welfare. This system contacts nobody.",
+  },
+};
+
+/* The action in one line, for the rail and the top of the pane. */
+const ACTION = {
+  mrcc: "Notify: takes charge of the rescue",
+  naval: "Ask to proceed to the casualty",
+  merchant: "Ask to assist under SOLAS",
+  manager: "Brief the ship's company",
+  next_of_kin: "Hand draft to welfare officer",
+};
+const shortName = p => esc(p.recipient_name.split(" (")[0]);
+const rangeOf = (i, p) => {
+  const r = (i.responders || []).find(x => x.mmsi === p.recipient_mmsi);
+  return r ? `${r.distance_nm} nm${r.eta_hours ? `, about ${r.eta_hours} h out` : ", not under way"}` : "";
+};
+const DECIDE = {
+  mrcc: (i, p) => `Release the formal notification to ${esc(p.recipient_name)}, handing it
+    coordination of this ${i.triage.type.toLowerCase()} on ${esc(i.vessel_name)}.`,
+  naval: (i, p) => `Ask ${shortName(p)} to proceed to ${esc(i.vessel_name)} (${rangeOf(i, p)}).`,
+  merchant: (i, p) => `Ask ${shortName(p)}, a passing ship, to assist ${esc(i.vessel_name)}
+    under SOLAS (${rangeOf(i, p)}).`,
+  manager: i => `Send the full picture of ${esc(i.vessel_name)} to the ship's company.`,
+  next_of_kin: () => `Hand the family letter draft to the company welfare officer.`,
+};
+const basisTag = (i, b) => b === "classification"
+  ? (i.triage.provider === "baseline" ? "Baseline rules" : `AI · ${esc(i.triage.provider)}`)
+  : b === "geometry" ? "Positions" : "Procedure";
+
+function stepFacts(i, p) {
+  const t = i.triage, tel = i.telemetry;
+  const r = (i.responders || []).find(x => x.mmsi === p.recipient_mmsi);
+  const facts = [
+    ["Casualty", `${esc(i.vessel_name)} · ${i.mmsi}`],
+    ["Incident", `${t.type} · ${SEV[t.severity]} · conf ${t.confidence.toFixed(2)}`],
+    ["Position", position(tel.lat, tel.lon)],
+    ["Speed / nav", `${tel.speedKn} kn · ${esc(String(NAV[tel.navStatus] ?? tel.navStatus))}`],
+  ];
+  if (r) facts.push(["Their range", `${r.distance_nm} nm${r.eta_hours ? ` · ETA ${r.eta_hours} h` : " · not under way"}`]);
+  facts.push(["Unconfirmed", t.unknowns.length ? `${t.unknowns.length} item${t.unknowns.length > 1 ? "s" : ""} flagged` : "none"]);
+  return facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("");
+}
+
 function stepPane(i, st) {
   const s = st[review.step], p = s.p;
   const nextOpen = st.findIndex((x, n) => n > review.step && undecided(x));
@@ -387,8 +479,24 @@ function stepPane(i, st) {
     <div class="rv-cls">${labelOf(i, p)}</div>
     <div class="rv-to">${esc(p.recipient_name)}</div>
     <p class="rv-who">${SESN.RECIPIENTS[p.recipient_class]?.plain || ""}</p>
-    ${isHeld(s) ? `<div class="rv-warn">${HELD_NOTE[p.recipient_class] || ""}</div>` : ""}
-    <div style="font-weight:600;margin:13px 0 4px">${esc(p.subject)}</div>
+    ${isHeld(s) ? `<p class="disclaimer"><span>Held for a company decision</span>${HELD_NOTE[p.recipient_class] || ""}</p>` : ""}
+    ${DECIDE[p.recipient_class] ? `<div class="rv-decide"><span>You are deciding</span>
+      ${DECIDE[p.recipient_class](i, p)}</div>` : ""}
+    ${(p.reasoning || []).length ? `
+      <p class="eyebrow" style="margin-top:16px">How this draft was decided</p>
+      <p class="muted" style="margin:0 0 8px;font-size:11.5px">Only lines tagged AI are a
+        model's judgement. Procedure and positions are fixed rules applied to that
+        judgement, identical on every replay. If the AI line is wrong, everything under it is.</p>
+      <ol class="rv-rec rv-chain">${p.reasoning.map(a => `<li class="b-${a.basis}">
+        <span class="tag">${basisTag(i, a.basis)}</span><span>${esc(a.text)}</span></li>`).join("")}</ol>` : ""}
+    ${STEP_BRIEF[p.recipient_class] ? `<div class="rv-brief">
+      <div><p class="eyebrow">What it asks them</p><p>${STEP_BRIEF[p.recipient_class].asks}</p></div>
+      <div><p class="eyebrow">After you release</p><p>${STEP_BRIEF[p.recipient_class].after}</p></div>
+    </div>` : ""}
+    <p class="eyebrow" style="margin-top:14px">Key facts in this message</p>
+    <dl class="kv rv-facts">${stepFacts(i, p)}</dl>
+    <p class="eyebrow" style="margin-top:14px">Full text as it will be sent</p>
+    <div style="font-weight:600;margin:4px 0 4px">${esc(p.subject)}</div>
     <pre style="max-height:46vh">${esc(p.body)}</pre>
     ${!undecided(s)
       ? `<div class="rv-done">${p.approved ? "Released" : "Rejected"}. Recorded in the audit log.
@@ -401,10 +509,10 @@ function stepPane(i, st) {
            marks the packet sent.
            <div class="row" style="margin-top:11px">
              <button class="btn ghost" onclick="goStep(${review.step})">Back</button>
-             <button class="btn primary" onclick="decide('approve')">Confirm release</button>
+             <button class="btn go" onclick="decide('approve')">Confirm release</button>
            </div></div>`
       : `<div class="row" style="margin-top:13px">
-           <button class="btn primary" onclick="askConfirm(${review.step})">Approve &amp; release</button>
+           <button class="btn go" onclick="askConfirm(${review.step})">Approve &amp; release</button>
            <button class="btn danger" onclick="decide('reject')">Reject</button>
            ${nextOpen >= 0 ? `<button class="btn ghost" onclick="goStep(${nextOpen})">Skip for now</button>` : ""}
          </div>`}`;
@@ -418,11 +526,11 @@ const bulkPane = (i, opOpen) => `
   <ul class="muted" style="margin:10px 0;padding-left:18px;line-height:1.7">
     ${opOpen.map(s => `<li><b>${labelOf(i, s.p)}</b> — ${esc(s.p.recipient_name)}</li>`).join("")}
   </ul>
-  <div class="rv-warn">The company and next-of-kin drafts are not included and cannot be.
-    You will be taken to them one at a time.</div>
+  <p class="disclaimer"><span>Not in this release</span>The company and next-of-kin drafts
+    are not included and cannot be. You will be taken to them one at a time.</p>
   <div class="row" style="margin-top:13px">
     <button class="btn ghost" onclick="goStep(${review.step})">Back</button>
-    <button class="btn primary" onclick="bulk()">Confirm release of all ${opOpen.length}</button>
+    <button class="btn go" onclick="bulk()">Confirm release of all ${opOpen.length}</button>
   </div>`;
 
 /* ---- assessment ----------------------------------------------------------
@@ -445,10 +553,11 @@ const briefPane = (i, st) => {
     <div class="rv-crumb">Assessment · read before releasing anything</div>
     <div class="rv-to" style="margin-top:8px">${t.type}
       <span class="pill sev-${t.severity}">${SEV[t.severity]}</span></div>
-    <p class="muted" style="margin:6px 0 0">Classified by <b>${esc(t.provider)}</b> at
-      confidence <b>${t.confidence.toFixed(2)}</b> in ${t.latency_ms} ms.
+    <p class="disclaimer"><span>${t.provider === "baseline" ? "Deterministic baseline" : "AI-generated"}</span>
+      Classified by <b>${esc(t.provider)}</b> at confidence <b>${t.confidence.toFixed(2)}</b>
+      in ${t.latency_ms} ms.
       ${t.provider === "baseline" ? "No LLM key configured, this is the deterministic floor."
-        : "The deterministic baseline classifier runs alongside as the floor."}</p>
+        : "A model's judgement, and it can be wrong. The deterministic baseline classifier runs alongside as the floor."}</p>
 
     <p class="eyebrow" style="margin-top:15px">Basis</p>
     <p style="margin:0">${esc(t.rationale) || "No rationale recorded."}</p>
@@ -497,7 +606,7 @@ const briefPane = (i, st) => {
    back to a list to find out what is still outstanding. */
 window.decide = async d => {
   const operator = operatorName();
-  if (!operator) return flash("Every approval is recorded against a person. Enter your name above.");
+  if (!operator) return flash("Every approval is recorded against a person. Sign in first.");
   const i = incidents.find(x => x.id === review.id);
   const s = stepsOf(i)[review.step];
   try { await SESN.post(`/api/incidents/${review.id}/packets/${s.n}/${d}`, { operator }); }
@@ -507,7 +616,7 @@ window.decide = async d => {
 
 window.bulk = async () => {
   const operator = operatorName();
-  if (!operator) return flash("Every approval is recorded against a person. Enter your name above.");
+  if (!operator) return flash("Every approval is recorded against a person. Sign in first.");
   const i = incidents.find(x => x.id === review.id);
   for (const s of stepsOf(i).filter(x => undecided(x) && !isHeld(x))) {
     try { await SESN.post(`/api/incidents/${review.id}/packets/${s.n}/approve`, { operator }); }
@@ -545,8 +654,26 @@ async function renderInspector() {
   if (inspect !== mmsi) return;  // operator clicked another hull while we fetched
   const el = $("#inspector");
   el.classList.add("on");
-  el.innerHTML = `
-    <header>
+  // The shell, and the compose box in it, is built once per hull. A frame lands every
+  // five seconds and used to repaint the whole inspector, which threw away whatever the
+  // operator was halfway through typing to the bridge.
+  if (el.dataset.mmsi !== String(mmsi)) {
+    el.dataset.mmsi = mmsi;
+    el.innerHTML = `
+    <header id="insp-head"></header>
+    <div class="body-scroll">
+      <dl class="kv" id="insp-kv" style="grid-template-columns:96px 1fr"></dl>
+      <p class="eyebrow" style="margin-top:15px">Bridge communications</p>
+      <div class="thread" id="insp-thread"></div>
+      <textarea id="msg" rows="3" placeholder="Message to the bridge terminal…"></textarea>
+      <button class="btn primary sm" style="width:100%;margin-top:7px"
+        onclick="sendMsg('${v.mmsi}')">Send to bridge</button>
+      <p class="muted" style="margin:8px 0 0;font-size:11px">Sent under your operator name
+      and written to the audit log. This is a direct operator message, not a GMDSS
+      distress relay, and it is not one of the gated response packets.</p>
+    </div>`;
+  }
+  $("#insp-head").innerHTML = `
       <div class="split">
         <div>
           <strong style="font-size:14px">${esc(v.name)}</strong>
@@ -556,49 +683,36 @@ async function renderInspector() {
         <button class="x" onclick="closeInspector()" title="close">×</button>
       </div>
       ${v.distressed ? `<div class="pill sev-4" style="margin-top:7px">IN DISTRESS ·
-        ${esc(v.fault || "vessel report")}</div>` : ""}
-    </header>
-    <div class="body-scroll">
-      <dl class="kv" style="grid-template-columns:96px 1fr">
+        ${esc(v.fault || "vessel report")}</div>` : ""}`;
+  $("#insp-kv").innerHTML = `
         <dt>MMSI</dt><dd>${v.mmsi}</dd>
         <dt>Type</dt><dd>${esc(v.kind)}${v.sarCapable ? " · SAR capable" : ""}</dd>
-        <dt>Carrying</dt><dd style="font-family:var(--sans);font-size:12.5px">${esc(v.cargo || "not declared")}</dd>
+        <dt>Carrying</dt><dd style="font-family:var(--font);font-size:12.5px">${esc(v.cargo || "not declared")}</dd>
         <dt>Persons</dt><dd>${v.pob} aboard</dd>
         <dt>Position</dt><dd>${position(v.lat, v.lon)}</dd>
         <dt>Course</dt><dd>${v.course}° · ${v.speed} kn</dd>
         <dt>Nav status</dt><dd>${NAV[v.navStatus] || v.navStatus}${v.dark ? " · AIS DARK" : ""}</dd>
         <dt>Bound for</dt><dd>${esc(v.destination || "-")}</dd>
-        <dt>Lane</dt><dd style="font-family:var(--sans);font-size:12.5px">${esc(v.corridor || "-")}</dd>
-      </dl>
-
-      <p class="eyebrow" style="margin-top:15px">Bridge communications</p>
-      <div class="thread">
-        ${thread.length ? thread.map(m => `<div class="msg ${m.frm}">
-            <div class="who">${m.frm === "shore" ? "shore" : "bridge"} ·
-              ${esc(m.author)} · ${SESN.clock(m.ts)}</div>
-            ${esc(m.text)}</div>`).join("")
-          : `<p class="muted" style="margin:0">No traffic with this bridge yet.</p>`}
-      </div>
-      <textarea id="msg" rows="3" placeholder="Message to the bridge terminal…"></textarea>
-      <button class="btn primary sm" style="width:100%;margin-top:7px"
-        onclick="sendMsg('${v.mmsi}')">Send to bridge</button>
-      <p class="muted" style="margin:8px 0 0;font-size:11px">Sent under your operator name
-      and written to the audit log. This is a direct operator message, not a GMDSS
-      distress relay, and it is not one of the gated response packets.</p>
-    </div>`;
+        <dt>Lane</dt><dd style="font-family:var(--font);font-size:12.5px">${esc(v.corridor || "-")}</dd>
+`;
+  // Written only when a message arrived: identical HTML every frame still reflows it.
+  const box = $("#insp-thread"), key = JSON.stringify(thread);
+  if (box.dataset.key !== key) {
+    box.dataset.key = key;
+    box.innerHTML = thread.length ? thread.map(m => `<div class="msg ${m.frm}">
+        <div class="who">${m.frm === "shore" ? "shore" : "bridge"} ·
+          ${esc(m.author)} · ${SESN.clock(m.ts)}</div>
+        ${esc(m.text)}</div>`).join("")
+      : `<p class="muted" style="margin:0">No traffic with this bridge yet.</p>`;
+  }
 }
 
 window.sendMsg = async mmsi => {
-  const author = $("#operator").value.trim();
+  const author = operatorName();
   const text = $("#msg").value.trim();
-  if (!author) {
-    await SESN.say("Your name first",
-      "A message to a bridge carries the name of the operator who sent it. Enter yours "
-      + "in the top bar.");
-    $("#operator").focus(); return;
-  }
+  if (!author) return showGate();   // a message to a bridge carries the sender's name
   if (!text) return;
-  try { await SESN.post(`/api/vessel/${mmsi}/message`, { text, author, frm: "shore" }); }
+  try { await SESN.post(`/api/vessel/${mmsi}/message`, { text, author, frm: "shore" }); $("#msg").value = ""; }
   catch (e) { await SESN.say("Not sent", e.message); }
   renderInspector();
 };
@@ -649,6 +763,52 @@ async function loadAudit() {
       : `<p class="muted">Nothing logged yet.</p>`);
 }
 
+/* ---- watch sign-in -------------------------------------------------------
+
+   Mock. The agents are invented and nothing is authenticated. What the gate buys is
+   that no approval can be made by nobody, and that one watch's audit lines all name
+   the same person rather than whatever was last typed into a box.               */
+
+const AGENTS = [
+  { name: "Anjali Menon", role: "Duty watch officer", desk: "Queue and approvals" },
+  { name: "Tomasz Wojcik", role: "SAR mission coordinator", desk: "Rescue tasking" },
+  { name: "Grace Okafor", role: "Maritime security liaison", desk: "Piracy and attacks" },
+  { name: "Kenji Sato", role: "Assistant watchkeeper", desk: "Intake and bridge messages" },
+  { name: "Lucia Ferreira", role: "Company liaison", desk: "DPA and next-of-kin drafts" },
+  { name: "Samuel Mensah", role: "Night watch officer", desk: "Queue and approvals" },
+];
+$("#agents").innerHTML = AGENTS.map((a, n) => `
+  <button class="tile" onclick="signIn(AGENTS[${n}])">
+    <strong>${esc(a.name)}</strong>
+    <span class="sub">${esc(a.role)}</span>
+    <span class="sub mono">${esc(a.desk)}</span>
+  </button>`).join("");
+
+window.signIn = a => {
+  agent = a;
+  localStorage.setItem("sesn.operator", JSON.stringify(a));
+  $("#whoami").textContent = `On watch: ${a.name}${a.role ? " · " + a.role : ""}`;
+  $("#signout").hidden = false; $("#gate").hidden = true;
+};
+window.signInOther = () => {
+  const name = $("#agent-other").value.trim();
+  if (name) signIn({ name, role: "" }); else $("#agent-other").focus();
+};
+$("#agent-other").onkeydown = e => { if (e.key === "Enter") signInOther(); };
+window.showGate = () => { $("#gate").hidden = false; };
+window.signOut = () => {
+  agent = null;
+  localStorage.removeItem("sesn.operator");
+  if ($("#review").open) closeReview();
+  closeInspector();
+  $("#whoami").textContent = ""; $("#signout").hidden = true;
+  showGate();
+};
+
+try {
+  const saved = JSON.parse(localStorage.getItem("sesn.operator"));
+  if (saved?.name) signIn(saved);
+} catch { /* nothing remembered, or unreadable: the gate stays up */ }
 loadQueue();
 </script>
 </body></html>

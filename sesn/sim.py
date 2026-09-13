@@ -22,6 +22,7 @@ import random
 from dataclasses import dataclass, field
 
 from .models import Telemetry
+from .names import vessel_name
 
 EARTH_NM = 3440.065
 TIME_SCALE = 120.0  # simulated seconds per wall-clock second
@@ -119,22 +120,18 @@ FISHING_GROUNDS: list[tuple[float, float, float]] = [
     (65.0, -20.0, 3.0), (12.0, 45.0, 2.5), (-10.0, 150.0, 4.0),
 ]
 
-# Invented operator brands. Any resemblance to a real carrier is the point of a
-# simulation and the limit of it. None of these companies exist.
-OPERATORS = [
-    "Marslev Line", "Medterra Shipping", "CGA Atlantique", "Cosmos Ocean",
-    "Hapag-Nord", "Evergale Marine", "Yanghai Lines", "Meridian ONE",
-    "Zamir Line", "HYM Global", "Pacific Interocean", "Wansea Carriers",
-    "Nordkap Bulk", "Auralis Tankers", "Kestrel Gas Transport", "Silverline Ro-Ro",
-]
-_NAMES = ["Sentinel", "Voyager", "Pioneer", "Mariner", "Spirit", "Endeavour", "Star",
-          "Horizon", "Provider", "Runner", "Crest", "Beacon", "Warden", "Trader",
-          "Harrier", "Osprey", "Meridian", "Aurora", "Pegasus", "Corona", "Zenith",
-          "Falcon", "Lantern", "Compass", "Anchor", "Tempest", "Cascade", "Summit"]
-FLAGS = ["Panama", "Liberia", "Marshall Islands", "Singapore", "Malta", "Bahamas",
-         "Hong Kong", "Cyprus", "Greece", "India", "China", "Japan", "Norway", "UK"]
-MIDS = ["636", "538", "371", "477", "249", "309", "563", "215", "241", "419",
-        "412", "431", "257", "232"]
+# Flag state and the Maritime Identification Digits that open its MMSIs. An MMSI whose
+# MID contradicts the flag is exactly the inconsistency a watchkeeper notices.
+FLAG_MIDS: dict[str, list[str]] = {
+    "Panama": ["351", "352", "353", "354", "355", "356", "357", "370", "371", "372"],
+    "Liberia": ["636"], "Marshall Islands": ["538"], "Singapore": ["563", "564", "565", "566"],
+    "Malta": ["215", "229", "248", "249", "256"], "Bahamas": ["308", "309", "311"],
+    "Hong Kong": ["477"], "Cyprus": ["209", "210", "212"], "Greece": ["237", "239", "240", "241"],
+    "India": ["419"], "China": ["412", "413", "414"], "Japan": ["431", "432"],
+    "Norway": ["257", "258", "259"], "UK": ["232", "233", "234", "235"],
+}
+FLAGS = list(FLAG_MIDS)
+STATE_FLAGS = ["Singapore", "Greece", "India", "China", "Japan", "Norway", "UK"]
 
 # What each hull is carrying. Operationally this is not decoration: cargo decides
 # whether a fire is a fire or a hazmat incident, and it is the first thing a
@@ -261,6 +258,7 @@ class Simulator:
         self.rng = random.Random(seed)
         self.ships: dict[str, Ship] = {}
         self.paused = False
+        self._names: set[str] = set()
         self._seed_fleet(size)
         # Rebuilt each tick: the flat frame every viewport is culled from. Built once
         # per tick rather than once per client.
@@ -326,22 +324,21 @@ class Simulator:
     def _add(self, used: set[str], kind: str, lat: float, lon: float, speed: float,
              nav: int, corridor: str, route: list, leg: int, destination: str = "") -> Ship:
         rng = self.rng
+        # Warships and coastguard cutters fly a state's own flag, never an open registry.
+        flags = STATE_FLAGS if kind in ("naval", "coastguard") else FLAGS
+        flag = flags[rng.randrange(len(flags))]
+        mids = FLAG_MIDS[flag]
         while True:
-            mmsi = MIDS[rng.randrange(len(MIDS))] + f"{rng.randrange(1000000):06d}"
+            mmsi = mids[rng.randrange(len(mids))] + f"{rng.randrange(1000000):06d}"
             if mmsi not in used:
                 used.add(mmsi)
                 break
-        operator = OPERATORS[rng.randrange(len(OPERATORS))] if kind not in (
-            "fishing", "naval", "coastguard", "research") else ""
-        stem = _NAMES[rng.randrange(len(_NAMES))]
-        prefix = operator.split()[0] if operator else {
-            "fishing": "FV", "naval": "NS", "coastguard": "CGS", "research": "RV"}[kind]
+        name, operator = vessel_name(rng, kind, flag, self._names)
         pob = (rng.randint(180, 3200) if kind == "passenger"
                else rng.randint(4, 9) if kind == "fishing"
                else rng.randint(14, 28))
         ship = Ship(
-            mmsi=mmsi, name=f"{prefix} {stem}", operator=operator, kind=kind,
-            flag=FLAGS[rng.randrange(len(FLAGS))], pob=pob,
+            mmsi=mmsi, name=name, operator=operator, kind=kind, flag=flag, pob=pob,
             lat=max(-85.0, min(85.0, lat)), lon=(lon + 540) % 360 - 180,
             course=rng.uniform(0, 360), speed_kn=speed, nav_status=nav,
             corridor=corridor, route=route, leg=leg, destination=destination,

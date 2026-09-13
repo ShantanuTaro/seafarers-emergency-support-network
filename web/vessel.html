@@ -4,43 +4,36 @@
 <title>SESN Bridge</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<link rel="icon" href="/static/favicon.svg">
 <link rel="stylesheet" href="/static/common.css">
 <style>
   .resp { display: flex; justify-content: space-between; align-items: center; gap: 12px;
-          padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-sm);
-          background: var(--surface-2); margin-bottom: 7px; }
-  .resp .d { font-family: var(--mono); font-size: 13px; font-weight: 600; text-align: right;
-             white-space: nowrap; min-width: 78px; }
-  .resp .d small { display: block; font-weight: 400; font-size: 11px; color: var(--dim); }
-  .step { display: flex; gap: 11px; align-items: flex-start; margin-bottom: 13px; }
-  .step .n { width: 23px; height: 23px; flex: none; border-radius: 50%; display: grid;
-             place-items: center; font-size: 11px; font-weight: 700;
-             background: var(--surface-3); color: var(--faint); }
-  .step.done .n { background: var(--ok); color: #04241a; }
-  .step.now .n { background: var(--warn); color: #241a00; }
-  .step .t { font-size: 13.5px; font-weight: 600; }
-  .step .s { font-size: 12px; color: var(--dim); }
+          margin-bottom: 8px; padding: 12px 14px; background: var(--bg);
+          border: 1px solid var(--line); border-radius: var(--r-md); }
+  .resp .d { min-width: 78px; text-align: right; white-space: nowrap;
+             font: 600 13px/1.4 var(--font-mono); }
+  .resp .d small { display: block; font: 400 11.5px/1.4 var(--font); color: var(--ink-3); }
 
   /* ---- raise button and incident list ---------------------------------- */
 
-  .raise-btn { display: block; width: 100%; text-align: left; cursor: pointer;
-    margin-top: 16px; padding: 16px 18px; border-radius: var(--r);
-    background: var(--danger); border: 1px solid var(--danger); color: #2a0008;
-    font: 700 17px/1.25 var(--sans); letter-spacing: -.01em; transition: .12s; }
-  .raise-btn:hover { filter: brightness(1.08); }
-  .raise-btn small { display: block; margin-top: 6px; font: 400 12.5px/1.5 var(--sans);
-    opacity: .82; }
+  .raise-btn { display: block; width: 100%; margin-top: 16px; padding: 18px 20px; text-align: left;
+    color: #fff; background: var(--red); border: 0; border-radius: var(--r-lg); cursor: pointer;
+    font: 600 18px/1.25 var(--font); letter-spacing: -.02em; transition: opacity .15s;
+    box-shadow: 0 18px 40px -22px color-mix(in srgb, var(--red) 80%, transparent); }
+  .raise-btn:hover { opacity: .9; }
+  .raise-btn small { display: block; margin-top: 6px; font: 400 13px/1.5 var(--font);
+    letter-spacing: 0; opacity: .9; }
 
-  .inc-row { display: block; width: 100%; text-align: left; font: inherit; cursor: pointer;
-    background: var(--surface-2); color: var(--ink); border: 1px solid var(--line);
-    border-left: 3px solid var(--line-bright);
-    border-radius: var(--r-sm); padding: 11px 13px; margin-bottom: 8px; }
-  .inc-row:hover { border-color: var(--line-bright); }
-  .inc-row.waiting { border-left-color: var(--warn); }
-  .inc-row.done { border-left-color: var(--ok); }
-  .inc-row strong { font-size: 15px; color: var(--accent); }
-  .inc-row .when { font-family: var(--mono); font-size: 11.5px; color: var(--faint); margin-top: 3px; }
-  .inc-row .sum { font-size: 12.5px; color: var(--dim); margin-top: 5px; }
+  .inc-row { display: block; width: 100%; margin-bottom: 8px; padding: 12px 14px; text-align: left;
+    font: inherit; color: var(--ink); background: var(--bg); cursor: pointer;
+    border: 1px solid var(--line); border-left: 3px solid var(--line-strong);
+    border-radius: var(--r-md); transition: border-color .15s; }
+  .inc-row:hover { border-color: var(--ink); }
+  .inc-row.waiting { border-left-color: var(--orange); }
+  .inc-row.done { border-left-color: var(--yes-ink); }
+  .inc-row strong { font-size: 15px; font-weight: 600; color: var(--accent); }
+  .inc-row .when { margin-top: 3px; font: 12px/1.4 var(--font-mono); color: var(--ink-3); }
+  .inc-row .sum { margin-top: 5px; font-size: 13px; color: var(--ink-2); }
 
   /* ---- windows ---------------------------------------------------------
 
@@ -48,55 +41,55 @@
      someone having the worst day of their career, sometimes in a moving wheelhouse,
      sometimes in smoke. Density is a luxury for people who are calm. */
 
-  dialog#raise-dlg, dialog#inc-dlg {
-    width: min(720px, calc(100vw - 28px)); max-height: calc(100vh - 44px); padding: 0;
-    border: 1px solid var(--line-bright); border-radius: 14px; overflow: hidden;
-    background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
-  dialog#raise-dlg::backdrop, dialog#inc-dlg::backdrop {
-    background: rgba(3,6,10,.76); backdrop-filter: blur(3px); }
-  .dlg-head { display: flex; justify-content: space-between; align-items: flex-start;
-    gap: 14px; padding: 16px 20px; border-bottom: 1px solid var(--line);
-    background: var(--surface-2); }
-  .dlg-ttl { display: flex; align-items: center; gap: 10px; font-size: 20px; font-weight: 700;
-    letter-spacing: -.02em; margin-bottom: 4px; }
-  .dlg-head .x { background: none; border: 0; color: var(--dim); font-size: 22px; width: 30px;
-    padding: 0; cursor: pointer; }
-  .dlg-head .x:hover { color: var(--ink); }
-  .dlg-body { padding: 18px 20px 22px; overflow: auto; max-height: calc(100vh - 130px); }
-  .dlg-err { color: var(--danger); font-weight: 600; font-size: 13.5px; margin: 0 0 12px; }
-  .btn.lg { padding: 13px 16px; font-size: 15px; }
+  .dlg-body { padding: 20px 24px 24px; overflow: auto; max-height: calc(100vh - 140px); }
+  .dlg-err { margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--red-ink); }
 
-  .gmdss-warn { padding: 11px 13px; margin-bottom: 16px; border-radius: var(--r-sm);
-    border: 1px solid rgba(251,191,36,.35); background: rgba(251,191,36,.08);
-    color: var(--warn); font-size: 13px; line-height: 1.55; }
-  .distress-btn.on { border-color: var(--danger); background: rgba(251,85,112,.12); }
-  .dlg-confirm { padding: 16px 18px; border: 1px solid var(--danger); border-radius: var(--r);
-    background: var(--surface-2); }
-  .dlg-confirm .c-ttl { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
-  .dlg-confirm p { font-size: 14px; line-height: 1.6; margin: 0 0 8px; }
+  .distress-btn.on { border-color: var(--red); background: var(--red-bg); }
+  .dlg-confirm { padding: 18px 20px; background: var(--red-bg); border-radius: var(--r-md);
+    border: 1px solid color-mix(in srgb, var(--red) 40%, transparent); }
+  .dlg-confirm .c-ttl { margin-bottom: 8px; font-size: 18px; font-weight: 600; letter-spacing: -.02em; }
+  .dlg-confirm p { margin: 0 0 8px; font-size: 14.5px; line-height: 1.6; }
 
-  .plain-lead { font-size: 16.5px; line-height: 1.55; font-weight: 600; margin-bottom: 20px;
-    padding: 14px 16px; border-radius: var(--r); background: var(--surface-2);
-    border-left: 3px solid var(--accent); }
-  .plain { font-size: 14.5px; line-height: 1.6; margin: 0; }
-  .need { margin: 0; padding-left: 20px; color: var(--warn); font-size: 14px; line-height: 1.75; }
-  .who-card { padding: 13px 15px; margin-bottom: 9px; border-radius: var(--r-sm);
-    border: 1px solid var(--line); background: var(--surface-2); }
-  .who-card strong { font-size: 14.5px; }
-  .who-card .role { margin: 6px 0 0; font-size: 13px; line-height: 1.55; color: var(--dim); }
-  .who-card .st { margin: 9px 0 0; font-size: 13.5px; line-height: 1.55; }
+  /* The one-sentence answer to "is anyone coming", on the wash: the calmest surface there is. */
+  /* Pulses once shore has actually released something: the one line a crew is waiting for.
+     A 2 s cycle divides the 4 s poll, so a repaint does not visibly jump the animation. */
+  .plain-lead.acted { color: var(--yes-ink); background: var(--yes-bg);
+    border: 1px solid color-mix(in srgb, var(--yes-ink) 45%, transparent);
+    animation: acted 2s ease-in-out infinite; }
+  @keyframes acted { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--yes-ink) 20%, transparent); } }
+  @media (prefers-reduced-motion: reduce) { .plain-lead.acted { animation: none; } }
+  .plain-lead { margin-bottom: 22px; padding: 18px 20px; font-size: 17px; font-weight: 500;
+    line-height: 1.55; letter-spacing: -.01em; background: var(--wash);
+    border: 1px solid var(--line); border-radius: var(--r-lg); }
+  .plain { margin: 0; font-size: 15px; line-height: 1.65; color: var(--ink-2); }
+  .need { margin: 0; padding-left: 20px; font-size: 14.5px; line-height: 1.75; color: var(--no-ink); }
+  .who-card { margin-bottom: 10px; padding: 14px 16px; background: var(--bg);
+    border: 1px solid var(--line); border-radius: var(--r-md); }
+  .who-card strong { font-size: 15px; font-weight: 600; }
+  .who-card .role { margin: 6px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
+  .who-card .st { margin: 10px 0 0; font-size: 14px; line-height: 1.55; }
   .who-card .st .pill { margin-right: 6px; }
-  .who-card .d { font-family: var(--mono); font-size: 13px; font-weight: 600; text-align: right;
-    white-space: nowrap; }
-  .who-card .d small { display: block; font-weight: 400; font-size: 11px; color: var(--dim);
-    font-family: var(--sans); }
+  .who-card .d { text-align: right; white-space: nowrap; font: 600 13px/1.4 var(--font-mono); }
+  .who-card .d small { display: block; font: 400 11.5px/1.4 var(--font); color: var(--ink-3); }
+
+  /* ---- sign-in --------------------------------------------------------- */
+
+  .gate-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0 12px; }
+  .gate-filters .wide { grid-column: 1 / -1; }
+  .gate-filters label { margin-top: 12px; }
+  @media (max-width: 760px) { .gate-filters { grid-template-columns: 1fr 1fr; } }
+  .gate select { width: 100%; padding: 10px 14px; font: 14px/1.5 var(--font); color: var(--ink);
+    background: var(--bg-alt); border: 1px solid transparent; border-radius: var(--r-pill); cursor: pointer; }
+  .gate select:focus { outline: none; background: var(--bg); border-color: var(--accent); }
+  .pickbar { top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center;
+    gap: 12px; padding: 8px 8px 8px 16px; font-size: 14px; white-space: nowrap; }
 </style></head>
 <body data-portal="bridge">
 <div class="shell">
   <div class="simbar">
-    <span>⚠</span><b>SIMULATION</b>
-    <span class="note">This is a demonstration bridge terminal. Real distress alerting
-    must be made via GMDSS (DSC, EPIRB, or Inmarsat). This system does not replace it.</span>
+    <b>Simulation</b>
+    <span class="note">A demonstration bridge terminal. Real distress alerting must be made
+    via GMDSS (DSC, EPIRB or Inmarsat). This system is supplementary to GMDSS, never a replacement.</span>
     <span class="spacer"></span>
     <span id="link"><span class="dot off"></span> connecting</span>
   </div>
@@ -107,40 +100,79 @@
       <a href="/vessel" class="on">Seafarer</a><a href="/ops">Operations</a><a href="/control">Control</a>
     </nav>
     <div style="flex:1"></div>
-    <input id="q" placeholder="Sign in to a vessel: search name or MMSI" style="width:330px" autocomplete="off">
+    <span class="muted" id="aboard"></span>
+    <button class="btn sm" id="switch" onclick="signOut()" hidden>Switch vessel</button>
   </div>
 
   <div class="body">
+    <!-- Sign-in comes before the bridge view. Searching lives here and not in the rail:
+         the rail repaints on a four-second poll, and a master searching for another hull
+         once watched their results replaced by their own ship mid-type. -->
+    <div class="gate" id="gate">
+      <div class="gate-box">
+        <p class="eyebrow">Bridge terminal · sign in</p>
+        <h1>Which vessel are you aboard?</h1>
+        <p class="lede">A mock sign-in. In service a bridge terminal is fitted to one hull
+        and there is nothing to choose; here you pick any ship in the simulated fleet. No
+        password, and none of these ships are real.</p>
+        <div class="gate-filters">
+          <div class="wide"><label for="f-q">Name or MMSI</label>
+            <input id="f-q" placeholder="e.g. Marslev, Maru, 636…" autocomplete="off"></div>
+          <div><label for="f-region">Region</label>
+            <select id="f-region"><option value="">Any region</option></select></div>
+          <div><label for="f-area">Area</label>
+            <select id="f-area"><option value="">Any lane, anchorage or ground</option></select></div>
+          <div><label for="f-kind">Ship type</label>
+            <select id="f-kind"><option value="">Any type</option></select></div>
+          <div><label for="f-flag">Flag</label>
+            <select id="f-flag"><option value="">Any flag</option></select></div>
+        </div>
+        <div class="split" style="margin:20px 0 12px;flex-wrap:wrap">
+          <span class="muted" id="f-count">Type a name, or narrow by region, area, type or flag.</span>
+          <button class="btn sm" onclick="pickOnMap()">Find it on the map instead</button>
+        </div>
+        <div class="gate-grid" id="f-results"></div>
+      </div>
+    </div>
+
     <div class="rail left">
       <div class="scroll">
-        <!-- Search results and the bridge view are separate elements on purpose. They
-             shared one container, and the sign-in poll repaints every four seconds, so
-             a master searching for another hull watched their results replaced by their
-             own ship mid-type. -->
-        <div id="hits" hidden></div>
-        <div id="left">
-          <div class="empty"><div class="big">⚓</div>
-            <p>Search for your vessel above to sign in.<br>
-            <span class="muted">In service this terminal is bound to one hull; here you pick one.</span></p>
-          </div>
-        </div>
+        <div id="left"></div>
       </div>
     </div>
 
     <div class="mapwrap">
       <div id="map" style="position:absolute;inset:0"></div>
+      <div class="overlay pickbar" id="pickbar" hidden>
+        <strong>Tap your ship on the map</strong>
+        <span class="muted">Zoom in to separate the traffic, then sign in from its card.</span>
+        <button class="btn sm ghost" onclick="showGate()">Back to the list</button>
+      </div>
       <div class="overlay inspector" id="inspector"></div>
       <div class="overlay legend">
-        <div style="font-weight:700;font-size:10px;letter-spacing:.1em;color:var(--faint)">TAP A SHIP</div>
-        <div class="item"><span class="dot" style="background:#4285f4;box-shadow:0 0 0 2px #fff"></span> your vessel</div>
-        <div class="item"><span class="dot" style="background:#fb5570"></span> in distress</div>
-        <div class="item"><span class="dot" style="background:#34d399"></span> can assist</div>
-        <div class="item"><span class="dot" style="background:#38bdf8"></span> merchant traffic</div>
+        <p class="eyebrow">Tap a ship</p>
+        <div class="item"><span class="dot" style="background:#4285f4;box-shadow:0 0 0 2px #fff, 0 0 0 3px var(--line-strong)"></span> your vessel</div>
+        <div class="item"><span class="dot" style="background:#ff2d55"></span> in distress</div>
+        <div class="item"><span class="dot" style="background:#10b981"></span> can assist</div>
+        <div class="item"><span class="dot" style="background:#1e9bd7"></span> merchant traffic</div>
       </div>
     </div>
 
     <div class="rail">
-      <div class="scroll" id="right"></div>
+      <!-- Static on purpose. Only the ranked list and the thread repaint when the poll
+           lands; the compose box is never rebuilt, or every tick would throw away
+           what the master was typing. -->
+      <div class="scroll" id="right" hidden>
+        <p class="eyebrow">Nearest assistance</p>
+        <p class="muted" style="margin:0 0 11px">Ranked by distance, with dedicated search and
+        rescue assets weighted ahead of merchant traffic at comparable range.</p>
+        <div id="nearby"></div>
+
+        <p class="eyebrow" style="margin-top:22px">Messages with shore</p>
+        <div class="thread" id="thread"></div>
+        <textarea id="reply" rows="3" placeholder="Message to the operations room…"></textarea>
+        <button class="btn" style="margin-top:8px" onclick="sendReply()">Send to shore</button>
+      </div>
     </div>
   </div>
 </div>
@@ -220,6 +252,8 @@ window.showContact = async mmsi => {
             ${esc(v.flag)}</div></div>
         <button class="x" onclick="closeContact()" title="close">×</button>
       </div>
+      ${!me && v.pob ? `<button class="btn primary sm" style="margin-top:10px;width:100%"
+          onclick="signIn('${v.mmsi}')">Sign in as this vessel</button>` : ""}
       ${v.mmsi === me ? `<div class="pill ghost" style="margin-top:7px">THIS VESSEL</div>`
         : v.distressed ? `<div class="pill sev-4" style="margin-top:7px">IN DISTRESS ·
             ${esc(v.fault || "vessel report")}</div>`
@@ -229,7 +263,7 @@ window.showContact = async mmsi => {
       <dl class="kv" style="grid-template-columns:92px 1fr">
         <dt>MMSI</dt><dd>${v.mmsi}</dd>
         <dt>Type</dt><dd>${esc(v.kind)}</dd>
-        <dt>Carrying</dt><dd style="font-family:var(--sans);font-size:12.5px">${esc(v.cargo || "not declared")}</dd>
+        <dt>Carrying</dt><dd style="font-family:var(--font);font-size:12.5px">${esc(v.cargo || "not declared")}</dd>
         <dt>Persons</dt><dd>${v.pob} aboard</dd>
         <dt>Course</dt><dd>${v.course}° · ${v.speed} kn</dd>
         <dt>Nav status</dt><dd>${NAV[v.navStatus] || v.navStatus}</dd>
@@ -256,40 +290,73 @@ const link = SESN.connect({
     `<span class="dot ${up ? "live" : "off"}"></span> ${up ? "connected to shore" : "reconnecting"}`,
 });
 
-/* ---- sign in ---- */
-let timer;
-const showHits = html => {
-  $("#hits").innerHTML = html;
-  // The bridge view stays mounted underneath and keeps polling; it is just out of the
-  // way while the master is choosing. `hidden` rather than a re-render, so signing out
-  // of the search costs nothing and loses no scroll position.
-  $("#hits").hidden = !html;
-  $("#left").hidden = !!html;
-};
-const clearHits = () => showHits("");
+/* ---- sign in -------------------------------------------------------------
 
-$("#q").oninput = e => {
-  clearTimeout(timer);
-  const q = e.target.value.trim();
-  if (q.length < 2) return clearHits();
-  timer = setTimeout(async () => {
-    if ($("#q").value.trim() !== q) return;   // a later keystroke already won
-    const hits = await SESN.api("/api/search?q=" + encodeURIComponent(q));
-    if ($("#q").value.trim() !== q) return;   // and again, the fetch is not instant
-    showHits(hits.map(v => `<div class="card click" onclick="signIn('${v.mmsi}')">
+   Mock, and first: nothing behind the gate means anything until the terminal knows
+   which hull it is on. Filters narrow the fleet server-side. The map route is for the
+   master who knows where they are before they remember how the name is spelt.    */
+
+const SIGNED_OUT = `<div class="empty"><div class="big">⚓</div>
+  <p>Not signed in.<br><span class="muted">Pick your vessel to see its status.</span></p></div>`;
+const FILTERS = ["q", "region", "area", "kind", "flag"];
+let timer, asked = 0;
+
+async function findVessels() {
+  const params = new URLSearchParams({ limit: 60 });
+  for (const f of FILTERS) { const v = $("#f-" + f).value.trim(); if (v) params.set(f, v); }
+  const narrowed = FILTERS.some(f => f !== "q" && params.has(f));
+  const browsing = !narrowed && (params.get("q") || "").length < 2;
+  if (browsing) { params.delete("q"); params.set("sample", 24); }
+  const n = ++asked;
+  const hits = (await SESN.api("/api/search?" + params)).filter(v => v.pob);
+  if (n !== asked) return;   // a later change already won; the fetch is not instant
+  $("#f-count").textContent = browsing
+    ? `${hits.length} ships picked at random. Type a name or narrow the filters to find a specific one.`
+    : hits.length >= 59
+    ? "Showing the first 60. Narrow the filters to find yours."
+    : `${hits.length} vessel${hits.length === 1 ? "" : "s"} match.`;
+  $("#f-results").innerHTML = hits.map(v => `
+    <button class="tile" onclick="signIn('${v.mmsi}')">
       <strong>${esc(v.name)}</strong>
-      <div class="muted mono" style="font-size:12px">${v.mmsi} · ${v.kind} · ${esc(v.flag)} ·
-      ${v.pob} POB</div></div>`).join("") || `<p class="muted">No vessel matches.</p>`);
-  }, 200);
+      <span class="sub">${esc(v.kind)} · ${esc(v.flag)} · ${v.pob} aboard</span>
+      <span class="sub mono">${v.mmsi} · ${esc(v.corridor || "-")}</span>
+    </button>`).join("");
+}
+FILTERS.forEach(f => $("#f-" + f).addEventListener(f === "q" ? "input" : "change", () => {
+  clearTimeout(timer);
+  timer = setTimeout(findVessels, f === "q" ? 200 : 0);
+}));
+
+window.showGate = () => {
+  $("#pickbar").hidden = true; closeContact();
+  $("#gate").hidden = false; $("#f-q").focus();
+  if (!$("#f-results").children.length) findVessels();
+};
+window.pickOnMap = () => {
+  $("#gate").hidden = true; $("#pickbar").hidden = false;
+  map.flyTo({ center: [20, 20], zoom: 1.5, duration: 800 });   // whole globe, not wherever the last ship was
 };
 
-// Escape abandons the search and puts the master back on their own ship.
-$("#q").onkeydown = e => { if (e.key === "Escape") { e.target.value = ""; clearHits(); } };
-
-window.signIn = mmsi => {
+window.signIn = async mmsi => {
+  // A remembered hull can be gone: the fleet is regenerated whenever its seed or its
+  // naming changes. Back to the gate, not a bridge view that 404s every four seconds.
+  try { await SESN.api("/api/vessel/" + mmsi); }
+  catch { localStorage.removeItem("sesn.vessel"); return showGate(); }
   me = mmsi; centred = false; localStorage.setItem("sesn.vessel", mmsi);
-  $("#q").value = ""; clearHits(); refresh();
+  $("#gate").hidden = true; $("#pickbar").hidden = true; $("#switch").hidden = false;
+  $("#reply").value = ""; closeContact(); refresh();
   clearInterval(poll); poll = setInterval(refresh, 4000);
+};
+
+window.signOut = () => {
+  clearInterval(poll);
+  me = null; mineNow = null; situation = null;
+  localStorage.removeItem("sesn.vessel");
+  if ($("#raise-dlg").open) $("#raise-dlg").close();
+  if ($("#inc-dlg").open) $("#inc-dlg").close();
+  $("#left").innerHTML = SIGNED_OUT; $("#right").hidden = true;
+  $("#aboard").textContent = ""; $("#switch").hidden = true;
+  drawMe(null); showGate();
 };
 
 /* ---- the bridge view -----------------------------------------------------
@@ -305,15 +372,19 @@ window.signIn = mmsi => {
 
 async function refresh() {
   if (!me) return;
-  const s = await SESN.api(`/api/vessel/${me}/situation`);
+  const asking = me;
+  const s = await SESN.api(`/api/vessel/${asking}/situation`);
+  if (me !== asking) return;   // signed out or switched hull while this was in flight
   const v = s.vessel, st = s.shoreStatus;
   mineNow = v; situation = s;
+  $("#aboard").textContent = `Aboard ${v.name} · ${v.mmsi}`;
   drawMe(null);
   // Centre on our own ship when signing in, and after that only if it has left the
   // view. Flying back on every poll meant a master could never look at the traffic
   // around them for more than four seconds.
   if (!centred || !map.getBounds().contains([v.lon, v.lat])) {
-    map.flyTo({ center: [v.lon, v.lat], zoom: Math.max(map.getZoom(), 7), duration: 800 });
+    // Zoom 5 on sign-in: close enough to pick out own ship, wide enough to see the traffic around it.
+    map.flyTo({ center: [v.lon, v.lat], zoom: centred ? map.getZoom() : 5, duration: 800 });
     centred = true;
   }
 
@@ -347,14 +418,22 @@ async function refresh() {
         <dt>Course / speed</dt><dd>${v.course}° · ${v.speed} kn</dd>
         <dt>Nav status</dt><dd>${NAV[v.navStatus] || v.navStatus}</dd>
         <dt>Persons aboard</dt><dd>${v.pob}</dd>
-        <dt>Type / cargo</dt><dd style="font-family:var(--sans);font-size:13px">${esc(v.kind)} ·
+        <dt>Type / cargo</dt><dd style="font-family:var(--font);font-size:13px">${esc(v.kind)} ·
           ${esc(v.cargo || "not declared")}</dd>
         <dt>Flag</dt><dd>${esc(v.flag)}</dd>
         <dt>Bound for</dt><dd>${esc(v.destination || "-")}</dd>
       </dl>
     </div>`);
 
-  SESN.repaint($("#right"), rightRail(s));
+  $("#right").hidden = false;
+  SESN.repaint($("#nearby"), nearbyList(s));
+  // The thread is written only when a message actually arrived. Rewriting identical
+  // HTML every poll still reflows it, which reads as the conversation twitching.
+  const key = JSON.stringify(s.messages);
+  if ($("#thread").dataset.key !== key) {
+    $("#thread").innerHTML = threadHtml(s.messages);
+    $("#thread").dataset.key = key;
+  }
   if (openIncident) renderIncident();   // keep an open window live as the poll lands
 }
 
@@ -376,29 +455,20 @@ const incRow = i => {
   </button>`;
 };
 
-const rightRail = s => `
-  <p class="eyebrow">Nearest assistance</p>
-  <p class="muted" style="margin:0 0 11px">Ranked by distance, with dedicated search and
-  rescue assets weighted ahead of merchant traffic at comparable range.</p>
-  ${s.nearby.length ? s.nearby.map(r => `
+const nearbyList = s => s.nearby.length ? s.nearby.map(r => `
     <div class="resp">
       <div><strong>${esc(r.name)}</strong>
         <div class="muted" style="font-size:11.5px">${r.kind}${r.sar_capable ? " · SAR capable" : ""}</div></div>
       <div class="d">${r.distance_nm} nm
         <small>${r.eta_hours ? r.eta_hours + " h" : "not under way"}</small></div>
-    </div>`).join("") : `<p class="muted">No traffic within range.</p>`}
+    </div>`).join("") : `<p class="muted">No traffic within range.</p>`;
 
-  <p class="eyebrow" style="margin-top:22px">Messages with shore</p>
-  <div class="thread">
-    ${s.messages.length ? s.messages.map(m => `<div class="msg ${m.frm}">
-        <div class="who">${m.frm === "shore" ? "operations room" : "this vessel"} ·
-          ${esc(m.author)} · ${SESN.clock(m.ts)}</div>
-        ${esc(m.text)}</div>`).join("")
-      : `<p class="muted" style="margin:0">Nothing yet. The watchkeeper ashore can write
-         to this terminal, and you can write back.</p>`}
-  </div>
-  <textarea id="reply" rows="3" placeholder="Message to the operations room…"></textarea>
-  <button class="btn" style="margin-top:8px" onclick="sendReply()">Send to shore</button>`;
+const threadHtml = messages => messages.length ? messages.map(m => `<div class="msg ${m.frm}">
+    <div class="who">${m.frm === "shore" ? "operations room" : "this vessel"} ·
+      ${esc(m.author)} · ${SESN.clock(m.ts)}</div>
+    ${esc(m.text)}</div>`).join("")
+  : `<p class="muted" style="margin:0">Nothing yet. The watchkeeper ashore can write
+     to this terminal, and you can write back.</p>`;
 
 /* ---- raise an incident ---------------------------------------------------
 
@@ -427,9 +497,10 @@ function renderRaise() {
       <button class="x" onclick="closeRaise()" title="close">×</button>
     </div>
     <div class="dlg-body">
-      <div class="gmdss-warn">This does not replace a GMDSS distress alert. If you are in
-      distress, alert by DSC, EPIRB or Inmarsat as well. This system is decision support
-      that sits beside GMDSS and never in place of it.</div>
+      <p class="disclaimer" style="margin:0 0 18px"><span>Not a GMDSS alert</span>This does
+      not replace a GMDSS distress alert. If you are in distress, alert by DSC, EPIRB or
+      Inmarsat as well. This system is decision support that sits beside GMDSS and never in
+      place of it.</p>
       ${raising.err ? `<p class="dlg-err">${esc(raising.err)}</p>` : ""}
 
       ${raising.confirming ? `
@@ -443,7 +514,7 @@ function renderRaise() {
           sent onward. You will see every step of that on this screen.</p>
           <div class="row" style="margin-top:14px">
             <button class="btn ghost lg" onclick="pickFault('${raising.key}')">Back</button>
-            <button class="btn danger lg" onclick="sendRaise()">Send to shore</button>
+            <button class="btn danger lg" onclick="sendRaise(this)">Send to shore</button>
           </div>
         </div>`
       : `
@@ -463,15 +534,23 @@ function renderRaise() {
         <p class="muted" style="margin:0 0 9px">Shore reads the words, not a form. Anything
         you can tell them sharpens what they send and who they send it to.</p>
         <textarea id="free" rows="4" placeholder="Master reports…"></textarea>
-        <button class="btn lg" style="margin-top:10px" onclick="sendFree()">
+        <button class="btn lg" style="margin-top:10px" onclick="sendFree(this)">
           Send report to shore</button>`}
     </div>`, ".dlg-body", `${raising.key}|${raising.confirming}`);
 }
 
-window.sendRaise = async () => {
+/* One tap is one distress. The server also refuses a duplicate, but a disabled button
+   tells the master the first tap registered, which a silent refusal does not. */
+let sending = false;
+const busy = btn => { sending = true; if (btn) { btn.disabled = true; btn.textContent = "Sending…"; } };
+
+window.sendRaise = async btn => {
+  if (sending) return;
+  busy(btn);
   try {
     await SESN.post("/api/inject", { mmsi: me, fault: raising.key, source: "bridge-terminal" });
   } catch (e) { raising.err = e.message; raising.confirming = false; return renderRaise(); }
+  finally { sending = false; }
   closeRaise();
   await refresh();
   // Straight into the incident just raised, which is the only thing the bridge now
@@ -480,11 +559,14 @@ window.sendRaise = async () => {
   if (openIncident) renderIncident();
 };
 
-window.sendFree = async () => {
+window.sendFree = async btn => {
+  if (sending) return;
   const text = $("#free").value.trim();
   if (!text) { raising.err = "Write something first, or pick one of the buttons above."; return renderRaise(); }
+  busy(btn);
   try { await SESN.post("/api/report", { mmsi: me, text }); }
   catch (e) { raising.err = e.message; return renderRaise(); }
+  finally { sending = false; }
   closeRaise();
   await refresh();
   openIncident = situation?.incidents?.[0]?.id || null;
@@ -519,13 +601,14 @@ function renderIncident() {
       <button class="x" onclick="closeIncident()" title="close">×</button>
     </div>
     <div class="dlg-body">
-      <div class="plain-lead">${leadLine(i, released, pending)}</div>
+      <div class="plain-lead ${released.length ? "acted" : ""}">${leadLine(i, released, pending)}</div>
 
       <p class="eyebrow">What shore understood</p>
       <p class="plain">${esc(t.rationale) || "No reasoning was recorded."}</p>
-      <p class="muted" style="margin:7px 0 0;font-size:12px">Worked out by ${esc(t.provider)},
-      a computer classifier, and checked by the operator who read your report. It is a
-      starting point, not a finding. If it is wrong, say so in a message to shore.</p>
+      <p class="disclaimer"><span>Computer classification</span>Worked out by
+      ${esc(t.provider)}, a computer classifier, and checked by the operator who read your
+      report. It is a starting point, not a finding. If it is wrong, say so in a message to
+      shore.</p>
 
       ${t.unknowns.length ? `
         <p class="eyebrow" style="margin-top:20px">What shore still needs to know</p>
@@ -588,7 +671,7 @@ const who = a => {
 window.sendReply = async () => {
   const text = $("#reply").value.trim();
   if (!text) return;
-  try { await SESN.post(`/api/vessel/${me}/message`, { text, frm: "vessel" }); }
+  try { await SESN.post(`/api/vessel/${me}/message`, { text, frm: "vessel" }); $("#reply").value = ""; }
   catch (e) { await SESN.say("Not sent", e.message); }
   refresh();
 };
@@ -600,10 +683,20 @@ window.sendReply = async () => {
 $("#raise-dlg").addEventListener("close", () => { raising = null; });
 $("#inc-dlg").addEventListener("close", () => { openIncident = null; });
 
+$("#left").innerHTML = SIGNED_OUT;
+const saved = localStorage.getItem("sesn.vessel");
+$("#gate").hidden = !!saved;   // a remembered hull goes straight to its bridge, no flash of the gate
+
+SESN.api("/api/directory").then(d => {
+  const fill = (id, items) => $(id).insertAdjacentHTML("beforeend",
+    items.map(x => `<option>${esc(x)}</option>`).join(""));
+  fill("#f-region", d.regions); fill("#f-area", d.areas);
+  fill("#f-kind", d.kinds); fill("#f-flag", d.flags);
+});
+
 SESN.api("/api/faults").then(f => {
   faults = f;
-  const saved = localStorage.getItem("sesn.vessel");
-  if (saved) signIn(saved);
+  if (saved) signIn(saved); else { $("#f-q").focus(); findVessels(); }
 });
 </script>
 </body></html>

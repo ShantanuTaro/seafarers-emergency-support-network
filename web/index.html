@@ -2,109 +2,299 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Seafarers Emergency Support Network</title>
+<meta name="description" content="Decision support for maritime distress incidents, in simulation. Supplementary to GMDSS, never a replacement.">
+<link rel="icon" href="/static/favicon.svg">
 <link rel="stylesheet" href="/static/common.css">
 <style>
-  .hero { max-width: 1060px; margin: 0 auto; padding: 56px 24px 40px; }
-  .hero h1 { font-size: 40px; letter-spacing: -.035em; line-height: 1.1; margin-bottom: 14px; }
-  .hero h1 span { background: linear-gradient(100deg, var(--accent), var(--violet));
-                  -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .lede { font-size: 17px; color: var(--dim); max-width: 640px; line-height: 1.65; }
-  .roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
-           gap: 16px; margin-top: 40px; }
-  .role { display: block; text-decoration: none; color: inherit; padding: 24px;
-          border: 1px solid var(--line); border-radius: 16px; background: var(--surface);
-          transition: .15s; }
-  .role:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
-  .role .ic { width: 42px; height: 42px; border-radius: 12px; display: grid;
-              place-items: center; font-size: 20px; margin-bottom: 14px; }
-  .role h2 { font-size: 18px; margin-bottom: 6px; }
-  .role p { margin: 0; color: var(--dim); font-size: 13.5px; line-height: 1.6; }
-  .role ul { margin: 12px 0 0; padding-left: 17px; color: var(--faint); font-size: 12.5px; }
-  .role .go { margin-top: 15px; font-size: 12.5px; font-weight: 600; color: var(--accent); }
-  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-           gap: 12px; margin-top: 44px; }
-  footer { max-width: 1060px; margin: 0 auto; padding: 28px 24px 60px;
-           color: var(--faint); font-size: 12.5px; border-top: 1px solid var(--line); }
+  /* The HS Code Lookup home page, adapted: a hero on the wash with the spectrum on one
+     line of the headline, numbered cards, a "why" band, an accordion FAQ, a column footer. */
+  html { scroll-behavior: smooth; }
+  body { font-size: 15px; line-height: 1.6; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
+
+  /* The banner travels with the nav, so scrolling never takes it off the screen. */
+  .top { position: sticky; top: 0; z-index: 100; }
+  .nav { background: color-mix(in srgb, var(--bg) 85%, transparent); border-bottom: 1px solid var(--line);
+         -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%); }
+  .nav .wrap { display: flex; align-items: center; gap: 40px; height: 60px; }
+  .nav nav { display: flex; gap: 28px; margin-left: auto; }
+  .nav nav a { font-size: 14px; color: var(--ink-2); }
+  .nav nav a:hover { color: var(--ink); }
+  section[id] { scroll-margin-top: 110px; }
+
+  .hero { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 72px;
+          align-items: start; padding: 88px 0 96px; }
+  /* The wash overhangs the text by 20px, never more than the narrowest page gutter, so it
+     cannot push the page wider than a phone. */
+  .hero::before { content: ""; position: absolute; inset: -40px -20px auto; z-index: -1; height: 420px;
+                  background: var(--wash); border-radius: var(--r-lg); }
+  .hero h1 { margin: 0 0 22px; font-size: clamp(40px, 5vw, 64px); font-weight: 600;
+             letter-spacing: -.04em; line-height: 1.04; }
+  .hero h1 span { background: var(--spectrum); -webkit-background-clip: text; background-clip: text;
+                  color: transparent; }
+  .lede { max-width: 460px; margin: 0 0 32px; font-size: 17px; line-height: 1.6; color: var(--ink-2); }
+  .facts { display: flex; flex-wrap: wrap; gap: 32px; min-height: 58px; }
+  .facts .n { display: block; font: 600 22px/1.3 var(--font-mono); letter-spacing: -.03em; color: var(--ink); }
+  .facts .l { display: block; margin-top: 4px; font-size: 12px; color: var(--ink-3); }
+
+  .portals { padding: 12px 24px; background: var(--bg); border: 1px solid var(--line);
+             border-radius: var(--r-lg); box-shadow: var(--shadow); }
+  .portals .eyebrow { margin: 12px 0 4px; }
+  .portal { display: grid; grid-template-columns: 30px 1fr auto; gap: 16px; align-items: start;
+            padding: 18px 0; color: var(--ink); border-top: 1px solid var(--line); }
+  .portals .eyebrow + .portal { border-top: 0; }
+  .portal:hover { color: var(--ink); }
+  .portal h2 { margin: 3px 0 4px; font-size: 17px; }
+  .portal p { margin: 0; font-size: 14px; line-height: 1.6; color: var(--ink-2); }
+  .portal .go { align-self: center; font-size: 18px; color: var(--ink-3); transition: transform .15s, color .15s; }
+  .portal:hover .go { color: var(--ink); transform: translateX(3px); }
+  .num { display: grid; place-items: center; width: 30px; height: 30px; border-radius: var(--r-sm);
+         font: 600 12px/1 var(--font-mono); color: #000; }
+  .n1 { background: var(--cyan); }
+  .n2 { background: #4b72fe; color: #fff; }
+  .n3 { background: var(--orange); }
+
+  section.band { padding: 80px 0; border-top: 1px solid var(--line); }
+  .band h2 { margin: 0 0 36px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .step { padding: 28px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md); }
+  .step .num { margin-bottom: 18px; }
+  .step h3 { margin: 0 0 10px; font-size: 17px; font-weight: 600; letter-spacing: -.02em; line-height: 1.35; }
+  .step p { margin: 0; font-size: 14px; line-height: 1.7; color: var(--ink-2); }
+
+  .why { display: grid; grid-template-columns: 1fr 2fr; gap: 64px; align-items: start; padding: 40px;
+         background: var(--wash); border-radius: var(--r-lg); }
+  .why h2 { margin: 0 0 16px; }
+  .why .claim { margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -.03em; line-height: 1.25; color: var(--ink); }
+  .why p { margin: 0 0 18px; font-size: 16px; line-height: 1.72; color: var(--ink-2); }
+  .why p:last-child { margin-bottom: 0; }
+
+  /* <details> is the accordion, so no script owns it. */
+  .faq .wrap { max-width: 760px; }
+  .faq details { margin-bottom: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-md); }
+  .faq summary { display: flex; justify-content: space-between; align-items: center; gap: 24px;
+                 padding: 18px 22px; cursor: pointer; list-style: none;
+                 font-size: 16px; font-weight: 500; letter-spacing: -.01em; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; flex: none; font-size: 20px; line-height: 1; color: var(--ink-3);
+                        transition: transform .2s; }
+  .faq details[open] summary::after { transform: rotate(45deg); }
+  .faq details p { margin: 0; padding: 0 60px 20px 22px; font-size: 15px; line-height: 1.72; color: var(--ink-2); }
+
+  footer { padding: 56px 0 40px; background: var(--bg-alt); border-top: 1px solid var(--line); }
+  .foot-cols { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 32px; margin-bottom: 44px; }
+  .foot-cols strong { display: block; margin-bottom: 10px; font-size: 15px; font-weight: 600; letter-spacing: -.02em; }
+  .foot-cols p { max-width: 380px; margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-3); }
+  .foot-cols .eyebrow { display: block; margin-bottom: 12px; }
+  .foot-cols a { display: block; margin-bottom: 8px; font-size: 13px; color: var(--ink-2); }
+  .foot-cols a:hover { color: var(--ink); }
+  .foot-base { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-top: 20px;
+               border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-3); }
+
+  @media (max-width: 64rem) {
+    .hero { grid-template-columns: 1fr; gap: 44px; padding: 56px 0 72px; }
+    .hero::before { height: 300px; }
+    .steps { grid-template-columns: 1fr; }
+    .why { grid-template-columns: 1fr; gap: 28px; }
+  }
+  @media (max-width: 48rem) {
+    .wrap { padding: 0 20px; }
+    .nav nav { display: none; }            /* the same links are in the footer */
+    section[id] { scroll-margin-top: 190px; }   /* the banner wraps to four lines up here */
+    section.band { padding: 56px 0; }
+    .why { padding: 28px 22px; }
+    .faq details p { padding-right: 22px; }
+    .foot-cols { grid-template-columns: 1fr; }
+  }
 </style></head>
 <body>
-<div class="simbar">
-  <span>⚠</span><b>SIMULATION</b>
-  <span class="note">Every vessel, position and incident in this system is synthetic.
-  Not connected to GMDSS, Cospas-Sarsat, or any real distress network.</span>
-</div>
-
-<div class="topbar">
-  <div class="brand"><div class="mark">S</div>
-    <div>SESN<small>Seafarers Emergency Support Network</small></div></div>
-</div>
-
-<div class="hero">
-  <h1>Distress coordination,<br><span>from alert to approved action.</span></h1>
-  <p class="lede">A vessel goes quiet, runs aground, or calls for help. SESN classifies
-  what happened, names the rescue authority legally responsible for that water, finds
-  the nearest hull that can actually reach them, and drafts a different message for
-  every party who needs one, then stops and waits for a human to approve each one.</p>
-
-  <div class="roles">
-    <a class="role" href="/vessel">
-      <div class="ic" style="background:rgba(52,211,153,.14);color:var(--ok)">⚓</div>
-      <h2>Seafarer portal</h2>
-      <p>For masters and crew. Declare distress in one action, with position, POB and
-      telemetry already attached, then actually see what shore is doing about it.</p>
-      <ul>
-        <li>One-touch distress declaration</li>
-        <li>Live shore status: seen, classified, released</li>
-        <li>Who is nearest and when they arrive</li>
-      </ul>
-      <div class="go">Open bridge view →</div>
-    </a>
-
-    <a class="role" href="/ops">
-      <div class="ic" style="background:rgba(56,189,248,.14);color:var(--accent)">◎</div>
-      <h2>Operations portal</h2>
-      <p>For the shore watch. World traffic picture, incident queue, triage reasoning,
-      and the approval gate that every outbound message has to pass through.</p>
-      <ul>
-        <li>Live world fleet at scale</li>
-        <li>Triage: type, severity, confidence, unknowns</li>
-        <li>Per-recipient drafts and approvals</li>
-      </ul>
-      <div class="go">Open operations →</div>
-    </a>
-
-    <a class="role" href="/control">
-      <div class="ic" style="background:rgba(251,191,36,.14);color:var(--warn)">⚙</div>
-      <h2>Control panel</h2>
-      <p>For engineers and demos. Inject faults into any vessel in the fleet, watch the
-      telemetry change, and confirm the detector earns its classification.</p>
-      <ul>
-        <li>12 injectable emergencies</li>
-        <li>Simulator pause and fleet statistics</li>
-        <li>LLM provider and circuit-breaker state</li>
-      </ul>
-      <div class="go">Open control panel →</div>
-    </a>
+<div class="top">
+  <div class="simbar">
+    <b>Simulation</b>
+    <span class="note">Every vessel, position and incident here is synthetic. Decision support
+    only: supplementary to GMDSS, never a replacement, and not connected to any real distress
+    network.</span>
   </div>
-
-  <div class="facts" id="facts"></div>
+  <header class="nav">
+    <div class="wrap">
+      <a class="brand" href="/"><span class="mark">S</span>Seafarers Emergency Support Network</a>
+      <nav>
+        <a href="#how">How it works</a>
+        <a href="#why">Why a human approves</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+    </div>
+  </header>
 </div>
+
+<div class="wrap">
+  <section class="hero">
+    <div>
+      <h1>Distress coordination,<br><span>from alert to approved action.</span></h1>
+      <p class="lede">A vessel goes quiet, runs aground, or calls for help. SESN classifies what
+        happened, names the rescue authority legally responsible for that water, finds the
+        nearest hull that can actually reach them, and drafts a different message for every
+        party who needs one, then stops and waits for a human to approve each one.</p>
+      <div class="facts" id="facts"></div>
+    </div>
+
+    <nav class="portals" aria-label="Portals">
+      <p class="eyebrow">Open a portal</p>
+      <a class="portal" href="/vessel">
+        <span class="num n1">01</span>
+        <div>
+          <h2>Seafarer portal</h2>
+          <p>For masters and crew. Raise an incident with position and persons aboard already
+            attached, then see what shore is doing about it and who is coming.</p>
+        </div>
+        <span class="go" aria-hidden="true">→</span>
+      </a>
+      <a class="portal" href="/ops">
+        <span class="num n2">02</span>
+        <div>
+          <h2>Operations portal</h2>
+          <p>For the shore watch. The world traffic picture, the incident queue, triage
+            reasoning, and the approval gate every outbound message has to pass.</p>
+        </div>
+        <span class="go" aria-hidden="true">→</span>
+      </a>
+      <a class="portal" href="/control">
+        <span class="num n3">03</span>
+        <div>
+          <h2>Control panel</h2>
+          <p>For engineers and demos. Inject any of 12 emergencies into any hull, pause the
+            simulator, and watch the LLM provider chain.</p>
+        </div>
+        <span class="go" aria-hidden="true">→</span>
+      </a>
+    </nav>
+  </section>
+</div>
+
+<section class="band" id="how">
+  <div class="wrap">
+    <h2 class="eyebrow">How it works</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="num n1">01</div>
+        <h3>A vessel calls, or goes quiet</h3>
+        <p>A report from the bridge, by radio, sat phone or email, or telemetry that stops
+          making sense: a ship at zero knots, aground, or dark on AIS. Faults move the feed,
+          so the detector has to earn its classification from it.</p>
+      </div>
+      <div class="step">
+        <div class="num n2">02</div>
+        <h3>Triage classifies, and names what it does not know</h3>
+        <p>Incident type, severity and confidence, with the basis for it and an explicit list
+          of unknowns. Then the rescue centre responsible for that water, and the hulls that
+          can reach the casualty, ranked.</p>
+      </div>
+      <div class="step">
+        <div class="num n3">03</div>
+        <h3>A named human releases each message</h3>
+        <p>One draft per recipient, worded for whoever reads it. Every one waits behind the
+          approval gate, and the audit log records who released it and when.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="why">
+  <div class="wrap">
+    <div class="why">
+      <div>
+        <h2 class="eyebrow">Why a human approves</h2>
+        <p class="claim">A wrong message at sea is a second emergency.</p>
+      </div>
+      <div>
+        <p>Tasking an unarmed tug into a boarding, or a family hearing about a fire before the
+          company does, helps no one. So every draft is born unapproved, and nothing but a
+          named operator's decision releases it. The company and next-of-kin drafts are never
+          part of a bulk release.</p>
+        <p>Every decision is written to an append-only audit log with its inputs, the model's
+          output and the approver's name, on the assumption that a marine board of inquiry
+          reads it one day. In this simulation nothing leaves the system at all: release writes
+          the log and marks the message sent.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band faq" id="faq">
+  <div class="wrap">
+    <h2 class="eyebrow">FAQ</h2>
+    <details>
+      <summary>Is this connected to GMDSS or any real distress network?</summary>
+      <p>No. SESN is decision support that sits beside GMDSS and never replaces it. It is not
+        connected to GMDSS, Cospas-Sarsat or any real network, and it transmits nothing.
+        Distress alerting must be made by DSC, EPIRB or Inmarsat.</p>
+    </details>
+    <details>
+      <summary>Are any of these ships real?</summary>
+      <p>No. Around 60,000 synthetic hulls move along real sea lanes, port anchorages and
+        fishing grounds. Every vessel name, MMSI and rescue centre is invented, and every
+        incident is raised on purpose, from the control panel or the bridge terminal.</p>
+    </details>
+    <details>
+      <summary>Why does one incident produce five messages?</summary>
+      <p>Because five parties need five different things. The rescue centre needs position,
+        persons aboard and the classification; a passing ship needs a duty-to-assist request
+        and the hazards; a SAR asset needs the threat picture; the company needs everything;
+        and a family needs a letter that a person writes. One broadcast to all of them is
+        worse than sending nothing.</p>
+    </details>
+    <details>
+      <summary>What does the classifier do when it is not sure?</summary>
+      <p>It says so. Unknown is a first-class answer, and every classification carries the
+        unknowns it declared. A beacon with no voice contact gets no incident type, and it
+        still reaches the rescue centre.</p>
+    </details>
+    <details>
+      <summary>Does it need an API key?</summary>
+      <p>No. With no key configured, triage runs on the deterministic baseline classifier,
+        which stays in place as the floor either way. A free Gemini, Mistral or Groq key puts
+        the LangGraph agent in front of it.</p>
+    </details>
+  </div>
+</section>
 
 <footer>
-  <strong style="color:var(--dim)">Supplementary to GMDSS, never a replacement.</strong>
-  Distress alerting must be made via GMDSS. This system is decision support only: it
-  drafts, it ranks, it explains, and it will not transmit anything without a named
-  human approving that specific message.
+  <div class="wrap">
+    <div class="foot-cols">
+      <div>
+        <strong>Seafarers Emergency Support Network</strong>
+        <p>Decision support for maritime distress incidents, in simulation. Inspired by the
+          Seafarers Emergency Support Network proposed by India at the 2026 BRICS Summit.</p>
+      </div>
+      <div>
+        <span class="eyebrow">Portals</span>
+        <a href="/vessel">Seafarer</a>
+        <a href="/ops">Operations</a>
+        <a href="/control">Control</a>
+      </div>
+      <div>
+        <span class="eyebrow">This page</span>
+        <a href="#how">How it works</a>
+        <a href="#why">Why a human approves</a>
+        <a href="#faq">FAQ</a>
+      </div>
+    </div>
+    <div class="foot-base">
+      <span>Supplementary to GMDSS, never a replacement. Decision support only.</span>
+      <span>Nothing transmits without a named human approving that specific message.</span>
+    </div>
+  </div>
 </footer>
 
 <script src="/static/common.js"></script>
 <script>
 SESN.api("/api/stats").then(s => {
   SESN.$("#facts").innerHTML = [
-    ["fleet", SESN.num(s.fleet), "vessels simulated"],
-    ["under_way", SESN.num(s.under_way), "under way now"],
-    ["incidents", s.incidents, "incidents raised"],
-    ["providers", s.llmProviders.filter(p => p.keyed).length + "/3", "LLM providers keyed"],
-  ].map(([, n, l]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join("");
+    [SESN.num(s.fleet), "vessels simulated"],
+    [SESN.num(s.under_way), "under way now"],
+    [s.incidents, "incidents raised"],
+    [s.llmProviders.filter(p => p.keyed).length + "/3", "LLM providers keyed"],
+  ].map(([n, l]) => `<div><span class="n">${n}</span><span class="l">${l}</span></div>`).join("");
 });
 </script>
 </body></html>

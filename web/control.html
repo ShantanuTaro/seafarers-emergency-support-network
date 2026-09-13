@@ -4,29 +4,31 @@
 <title>SESN Control Panel</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.js"></script>
+<link rel="icon" href="/static/favicon.svg">
 <link rel="stylesheet" href="/static/common.css">
 <style>
-  :root { --accent: #fbbf24; --accent-ink: #241a00; }
-  .brand .mark { background: linear-gradient(140deg, #fbbf24, #fb5570); }
+  /* Amber, so this screen is never mistaken for the operations console. */
+  :root { --accent: light-dark(#b85a00, #ff9f3a); --accent-hover: light-dark(#8f4600, #ffba6b); }
+  .brand .mark { background: var(--spectrum-warn); }
   .faultgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .fault {
-    border: 1px solid var(--line); background: var(--surface-2); color: var(--ink);
-    border-radius: var(--r-sm); padding: 10px 11px; cursor: pointer; text-align: left;
-    font: 600 12.5px var(--sans); transition: .12s;
+    padding: 11px 12px; text-align: left; cursor: pointer; color: var(--ink);
+    font: 500 13px/1.35 var(--font); background: var(--bg); border: 1px solid var(--line);
+    border-radius: var(--r-md); transition: border-color .15s, background .15s;
   }
-  .fault:hover:not(:disabled) { border-color: var(--warn); background: rgba(251,191,36,.09); }
-  .fault:disabled { opacity: .35; cursor: not-allowed; }
-  .fault small { display: block; font-weight: 400; font-size: 10.5px; color: var(--faint); margin-top: 2px; }
-  .prov { display: flex; justify-content: space-between; align-items: center;
-          padding: 8px 11px; border: 1px solid var(--line); border-radius: var(--r-sm);
-          margin-bottom: 6px; background: var(--surface-2); font-size: 12.5px; }
+  .fault:hover:not(:disabled) { border-color: var(--orange); background: var(--no-bg); }
+  .fault:disabled { opacity: .4; cursor: not-allowed; }
+  .fault small { display: block; margin-top: 3px; font-size: 11px; font-weight: 400; color: var(--ink-3); }
+  .prov { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+          margin-bottom: 6px; padding: 10px 12px; font-size: 13px; background: var(--bg);
+          border: 1px solid var(--line); border-radius: var(--r-md); }
 </style></head>
 <body>
 <div class="shell">
   <div class="simbar">
-    <span>⚙</span><b>CONTROL PANEL / FAULT INJECTION</b>
-    <span class="note">This screen stages synthetic emergencies. It exists because every
-    incident in this system is fabricated on purpose. Nothing here observes a real vessel.</span>
+    <b>Control panel / fault injection</b>
+    <span class="note">Stages synthetic emergencies on simulated traffic. Nothing here observes
+    a real vessel. Supplementary to GMDSS, never a replacement.</span>
     <span class="spacer"></span>
     <span id="link"><span class="dot off"></span> connecting</span>
   </div>
@@ -161,7 +163,7 @@ window.pick = async mmsi => {
       <dt>Course / speed</dt><dd>${target.course}° · ${target.speed} kn</dd>
       <dt>Nav status</dt><dd>${NAV[target.navStatus] || target.navStatus}</dd>
       <dt>Persons aboard</dt><dd>${target.pob}</dd>
-      <dt>Type / cargo</dt><dd style="font-family:var(--sans);font-size:12.5px">${esc(target.kind)} ·
+      <dt>Type / cargo</dt><dd style="font-family:var(--font);font-size:12.5px">${esc(target.kind)} ·
         ${esc(target.cargo || "not declared")}</dd>
       <dt>Lane</dt><dd>${esc(target.corridor || "-")}</dd>
     </dl></div>`;
@@ -184,8 +186,8 @@ window.inject = async key => {
   try {
     const inc = await SESN.post("/api/inject", { mmsi: target.mmsi, fault: key });
     $("#target").insertAdjacentHTML("afterend",
-      `<div class="card" style="border-color:var(--ok)">
-        <strong style="color:var(--ok)">Incident ${inc.id} opened</strong>
+      `<div class="card" style="border-color:var(--yes-ink)">
+        <strong style="color:var(--yes-ink)">Incident ${inc.id} opened</strong>
         <div class="muted" style="margin-top:3px">Triaged as <strong>${inc.triage.type}</strong>,
         severity ${inc.triage.severity}, ${inc.packets.length} packets drafted and pending
         approval. <a class="plain" href="/ops">Open in operations →</a></div></div>`);

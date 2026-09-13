@@ -20,6 +20,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import random
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -165,6 +166,16 @@ def _open_incident(mmsi: str, text: str, telemetry: Telemetry,
     return incident
 
 
+def _already_open(mmsi: str, fault_label: str | None, text: str) -> Incident | None:
+    """A second tap on "Send to shore" is the same distress, not a new one. While the
+    hull is still in distress, an identical fault or report returns the open incident
+    instead of drafting a second set of messages to the same rescue centre."""
+    if not sim.ships[mmsi].distressed:
+        return None
+    return next((i for i in reversed(incidents.values()) if i.mmsi == mmsi
+                 and i.injected_fault == fault_label and i.report_text == text), None)
+
+
 async def _announce(incident: Incident) -> None:
     payload = {"type": "incident", "incident": incident.model_dump(mode="json")}
     for ws in list(clients):
@@ -181,6 +192,9 @@ async def inject(req: InjectRequest):
         raise HTTPException(404, "unknown vessel")
     if req.fault not in FAULTS:
         raise HTTPException(400, f"unknown fault: {req.fault}")
+    if dup := _already_open(req.mmsi, FAULTS[req.fault].label, FAULTS[req.fault].text):
+        audit("incident.duplicate_ignored", incident=dup.id, mmsi=req.mmsi, source=req.source)
+        return dup
     ship, fault, beacon = sim.inject(req.mmsi, req.fault)
     # A beacon with no accompanying report is the hard case: triage sees only the
     # beacon's own telemetry, which is exactly what a shore watch gets.
@@ -197,6 +211,9 @@ async def manual_report(req: ReportRequest):
         raise HTTPException(404, "unknown vessel")
     if not req.text.strip():
         raise HTTPException(400, "a report cannot be empty")
+    if dup := _already_open(req.mmsi, None, req.text.strip()):
+        audit("incident.duplicate_ignored", incident=dup.id, mmsi=req.mmsi, source="vessel-report")
+        return dup
     ship = sim.ships[req.mmsi]
     ship.distressed = True
     incident = _open_incident(req.mmsi, req.text.strip(), ship.telemetry(), None, "vessel-report")
@@ -302,16 +319,38 @@ async def stats():
 
 
 @app.get("/api/search")
-async def search(q: str, limit: int = 20):
-    """Name or MMSI prefix. A linear scan over 60k strings is a few milliseconds
-    and an index would be a lie about how often this is called."""
+async def search(q: str = "", kind: str = "", flag: str = "", region: str = "",
+                 area: str = "", limit: int = 20, sample: int = 0):
+    """Name or MMSI, optionally narrowed by type, flag, SAR region and area (lane,
+    anchorage or fishing ground). A linear scan over 60k hulls is a few milliseconds
+    and an index would be a lie about how often this is called. The region test runs
+    last because it is the only one that costs anything."""
     ql = q.strip().lower()
-    if len(ql) < 2:
-        return []
-    hits = [_ship_detail(s) for s in sim.ships.values()
-            if ql in s.name.lower() or s.mmsi.startswith(ql)]
-    hits.sort(key=lambda h: (not h["distressed"], h["name"]))
-    return hits[:limit]
+    if len(ql) < 2 and not (kind or flag or region or area):
+        # A blank gate is a dead end for a demo. Unseeded on purpose: the sim's own RNG
+        # must not be advanced by someone browsing, or a scenario stops replaying exactly.
+        crewed = [s for s in sim.ships.values() if s.pob] if sample else []
+        return [_ship_detail(s) for s in random.sample(crewed, min(sample, 200, len(crewed)))]
+    hits = [s for s in sim.ships.values()
+            if (not ql or ql in s.name.lower() or s.mmsi.startswith(ql))
+            and (not kind or s.kind == kind) and (not flag or s.flag == flag)
+            and (not area or s.corridor == area)
+            and (not region or response.sar_region(s.lat, s.lon)[0] == region)]
+    hits.sort(key=lambda s: (not s.distressed, s.name))
+    return [_ship_detail(s) for s in hits[:max(1, min(limit, 200))]]
+
+
+@app.get("/api/directory")
+async def directory():
+    """The choices behind the bridge sign-in filters, drawn from the fleet itself so a
+    filter never offers an option that matches nothing."""
+    ships = [s for s in sim.ships.values() if s.pob]
+    return {
+        "kinds": KINDS,
+        "flags": sorted({s.flag for s in ships}),
+        "regions": sorted({response.sar_region(s.lat, s.lon)[0] for s in ships}),
+        "areas": sorted({s.corridor for s in ships if s.corridor}),
+    }
 
 
 @app.get("/api/vessel/{mmsi}")

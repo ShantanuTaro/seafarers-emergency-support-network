@@ -112,6 +112,9 @@ class Packet(BaseModel):
     recipient_mmsi: str | None = None
     subject: str
     body: str
+    # How this draft came to exist, in order, each line tagged with its basis. The
+    # operator has to see which step was the model and which was procedure or distance.
+    reasoning: list[Action] = []
     approved: bool = False
     rejected: bool = False
     # Who decided, and when. The bridge is told the name: a crew that can see their

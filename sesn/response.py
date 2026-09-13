@@ -125,7 +125,7 @@ def build_packets(incident: Incident, vessel: Ship,
     # boarding. For a security incident the asset must be armed, or there is no asset
     # draft at all and the recommendation says plainly that none was in range.
     # Same call the recommendation makes, so the two can never name different ships.
-    _, asset, closest = assign(t, responders)
+    want, asset, closest = assign(t, responders)
 
     packets = [
         Packet(
@@ -239,6 +239,50 @@ def build_packets(incident: Incident, vessel: Ship,
         ),
     ))
 
+    classified = Action(basis="classification", text=(
+        f"{t.provider} read the report and telemetry as {t.type.value}, {t.severity.name} "
+        f"severity, confidence {t.confidence:.2f}. Basis: {t.rationale}"))
+    why = {
+        "mrcc": [
+            classified,
+            Action(basis="geometry", text=f"The casualty is at {pos}, inside {region}. "
+                   f"{mrcc} holds coordination authority for that area."),
+            Action(basis="policy", text="Every incident goes to the responsible rescue centre "
+                   "first. It tasks ships; no request from this station substitutes for that."),
+        ],
+        "manager": [Action(basis="policy", text=(
+            "Every incident is reported to the ship's Designated Person Ashore. Held because it "
+            "starts the company response (insurers, salvage, families), not a rescue."))],
+        "next_of_kin": [Action(basis="policy", text=(
+            "Drafted so the company has wording ready. Never sent by this system: a named "
+            "welfare officer rewrites and sends it."))],
+    }
+    if asset:
+        passed = [r for r in responders if r.distance_nm < asset.distance_nm]
+        why["naval"] = [
+            classified,
+            Action(basis="policy", text=f"Standing procedure for {t.type.value}: {_WHY[want]}"),
+            Action(basis="geometry", text=f"{asset.name} ({asset.kind}) is the closest match "
+                   f"in range: {_range(asset)}."),
+            *([Action(basis="geometry", text="Nearer but passed over, wrong capability for this "
+                      "incident: " + ", ".join(f"{r.name} ({r.kind}, {r.distance_nm} nm)"
+                                               for r in passed[:3]) + ".")] if passed else []),
+            Action(basis="policy", text="Drafted as a request, not an order. The rescue centre "
+                   "and the asset's own command decide whether it goes."),
+        ]
+    if closest:
+        why["merchant"] = [
+            classified,
+            Action(basis="policy", text=(
+                f"Standing procedure for {t.type.value}: {_WHY['any']}" if want == "any" else
+                "SOLAS obliges any master who can help safely to do so. The nearest ship that "
+                "is not the tasked asset gets this request, so two drafts reach two bridges.")),
+            Action(basis="geometry", text=f"{closest.name} ({closest.kind}) is the nearest such ship: {_range(closest)}."),
+            Action(basis="policy", text=f"Hazards written into the draft for {t.type.value}: "
+                   + " ".join(_hazards(t.type.value).split())),
+        ]
+    for p in packets:
+        p.reasoning = why.get(p.recipient_class, [])
     return packets
 
 
