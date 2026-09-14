@@ -141,20 +141,24 @@ Deliberately larger type and lower density than the operations console, because 
 gets read by someone having the worst day of their career.
 
 One action declares distress with position, course, speed and persons aboard attached
-automatically. Then it answers the question current systems answer worst: **what is
-shore actually doing?** Received, classified, drafted, approved and released, with the
-name of the operator who released it. It also surfaces the triage agent's declared
-unknowns to the crew as "what shore still needs to know", because they are the only
-people who can answer them. A message thread runs both ways between the bridge and
-the watchkeeper, so the unknowns can be closed by the people who hold the answers.
+automatically, plus an optional comment in the crew's own words that goes to triage and
+into the rescue centre and company drafts. Then it answers the question current systems
+answer worst: **what is shore actually doing?** The incident window shows only what the
+crew raised and each action shore has released, with the operator's name and a live ETA
+for any ship asked to come. Until then it shows a waiting indicator. Classifier output
+and drafts stay ashore: a crew in an emergency has no time to read them. A message
+thread runs both ways between the bridge and the watchkeeper.
 
 ### `/ops`, the operations console
 
 Dense, dark, map dominant. The incident queue is always on screen, and opening an
 incident reviews it in a window over the queue that also lists every other incident
 still pending: a console that swaps the queue for a detail view hides every casualty
-that arrives while an operator is reading one. Full triage detail: classification, the
-basis for it, declared unknowns, which classifier ran and how long it took. Manual
+that arrives while an operator is reading one. The window leads with the highlights
+(classification, basis, what the crew said, what to do now, the decision and its
+buttons) and keeps the full detail one click down: declared unknowns, which classifier
+ran and how long it took, the ranked responders, and each draft's full text. Casualties
+pulse on the map so they are found at world zoom. Manual
 intake for reports arriving by radio, sat phone or email. Append only audit log.
 
 Clicking any contact on the map opens the vessel inspector: what the hull is, what it
@@ -302,6 +306,11 @@ Three real defects, all of which would have shipped silently:
 - **All traffic is simulated.** There is no AIS feed. ~60,000 synthetic hulls move on
   34 real sea lanes with port anchorages and fishing grounds. The count matches the
   real world merchant fleet; nothing on the map is a real ship.
+- **Coastlines are approximate.** Hulls are kept at sea by a land mask rasterised from
+  Natural Earth 1:50m land at about 3 nm per cell (`sesn/land.py`). That resolution
+  closes the narrowest straits (the Bosporus, the Sound) and misses small islets, so a
+  ship threading one can briefly sit on what the mask calls land. Zoomed into a
+  harbour, positions will not match the detailed basemap coastline.
 - **All incidents are fabricated.** Every one is injected from the control panel or
   declared from the bridge terminal. Nothing observes a real emergency.
 - **Not connected to any real distress system.** No GMDSS, no Cospas-Sarsat.
@@ -329,6 +338,7 @@ Three real defects, all of which would have shipped silently:
 | --- | --- |
 | `sesn/models.py` | Typed contracts. Every boundary speaks these. |
 | `sesn/sim.py` | Vessel simulator, fault catalogue, deterministic under a seed |
+| `sesn/land.py`, `sesn/land.bin` | Land mask from Natural Earth 1:50m, keeps the fleet at sea |
 | `sesn/baseline.py` | Deterministic classifier: the floor, and the offline fallback |
 | `sesn/providers.py` | LLM provider chain with circuit breaker |
 | `sesn/triage.py` | LangGraph triage agent |

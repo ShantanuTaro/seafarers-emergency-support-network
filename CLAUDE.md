@@ -36,7 +36,9 @@ BRICS Summit (Sept 12, 2026).
 - **Traffic**: in-process vessel simulator on a fixed tick, ~60,000 synthetic hulls
   (world merchant fleet scale) across 34 real sea lanes, 45 port anchorages and 15
   fishing grounds. Ships are a slots dataclass, not pydantic. At this count that is
-  the difference between a simulator and a memory problem.
+  the difference between a simulator and a memory problem. Hulls are placed only in
+  open water per a Natural Earth 1:50m land mask (`sesn/land.py`), lanes run out and
+  back rather than looping, and every lane leg is checked against the mask in tests.
 - **Realtime push**: FastAPI WebSocket. The client pushes its viewport, the server
   culls the frame to it and sends compact arrays `[mmsi, lat, lon, course, kind, flags]`.
   Names, flags and POB are fetched per vessel on click. Sending them for every hull
@@ -132,21 +134,23 @@ For a master or crew member aboard one hull. Deliberately larger type and lower
 density than the ops console: it gets read by someone having the worst day of their
 career.
 
-- One-action distress declaration; position, course, speed and POB attach automatically
+- One-action distress declaration with an optional crew comment, which triage reads;
+  position, course, speed and POB attach automatically
 - **Shore status in plain language**. This is the gap in current systems. A crew
-  declares distress and then has no idea whether anyone ashore has picked it up, what
-  was concluded, or who is coming. The portal answers exactly that: received →
-  classified → drafted → approved and released, with names.
+  declares distress and then has no idea whether anyone ashore has picked it up or who
+  is coming. The incident window shows only what the crew raised and each action shore
+  has released, with names and ETAs, and a waiting indicator until then. No classifier
+  output, unknowns or drafts: the crew has no time to read them mid-emergency.
 - Nearest assistance with distance and ETA
-- The triage agent's declared unknowns, shown to the crew as "what shore still needs
-  to know", for the people who can actually answer them
+- Sign-in is never remembered, on this portal or ops: every load starts at the gate
 
 ### `/ops`: operations portal
 For the shore watch. Dense, dark, map-dominant.
 
-- World traffic picture at fleet scale, viewport-culled
+- World traffic picture at fleet scale, viewport-culled, casualties pulsing
 - Incident queue with severity, confidence and pending-approval counts
-- Triage detail: classification, basis, declared unknowns, classifier and latency
+- Triage detail: highlights first (classification, basis, crew comment, do-now actions),
+  the rest (unknowns, classifier and latency, responders, full draft text) in a disclosure
 - Per-recipient packets behind the approval gate
 - Manual intake for reports arriving by radio, sat phone or email
 - Append-only audit log

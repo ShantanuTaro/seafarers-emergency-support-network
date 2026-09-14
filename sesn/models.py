@@ -137,3 +137,6 @@ class Incident(BaseModel):
     responders: list[Responder] = []
     recommendation: list[Action] = []
     injected_fault: str | None = None
+    # The crew's own words typed alongside the emergency they picked. Also folded into
+    # report_text, so triage reads it; kept apart so the portals can show it on its own.
+    crew_comment: str | None = None

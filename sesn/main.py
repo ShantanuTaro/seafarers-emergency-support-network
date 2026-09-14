@@ -120,6 +120,7 @@ class InjectRequest(BaseModel):
     mmsi: str
     fault: str
     source: str = "control-panel"
+    comment: str = ""  # optional, from the bridge: what the crew adds to the button they pressed
 
 
 class ReportRequest(BaseModel):
@@ -138,13 +139,14 @@ class MessageRequest(BaseModel):
 
 
 def _open_incident(mmsi: str, text: str, telemetry: Telemetry,
-                   fault_label: str | None, source: str) -> Incident:
+                   fault_label: str | None, source: str,
+                   comment: str | None = None) -> Incident:
     ship = sim.ships[mmsi]
     result, trace = triage.run(text, telemetry)
     incident = Incident(
         id=uuid.uuid4().hex[:8], mmsi=mmsi, vessel_name=ship.name,
         opened_at=_now(), report_text=text, telemetry=telemetry,
-        triage=result, injected_fault=fault_label)
+        triage=result, injected_fault=fault_label, crew_comment=comment)
     fleet = list(sim.ships.values())
     responders = response.nearest(fleet, ship, limit=8)
     # `nearest` weights dedicated SAR assets ahead of merchant traffic, so in a busy
@@ -192,14 +194,20 @@ async def inject(req: InjectRequest):
         raise HTTPException(404, "unknown vessel")
     if req.fault not in FAULTS:
         raise HTTPException(400, f"unknown fault: {req.fault}")
-    if dup := _already_open(req.mmsi, FAULTS[req.fault].label, FAULTS[req.fault].text):
+    fault = FAULTS[req.fault]
+    # The crew's comment is read by triage alongside the report the button stands for,
+    # so the classification, its unknowns and the drafts work from what the bridge said.
+    comment = req.comment.strip()[:2000]
+    text = f"{fault.text}\n\nCrew comment: {comment}".strip() if comment else fault.text
+    if dup := _already_open(req.mmsi, fault.label, text):
         audit("incident.duplicate_ignored", incident=dup.id, mmsi=req.mmsi, source=req.source)
         return dup
     ship, fault, beacon = sim.inject(req.mmsi, req.fault)
     # A beacon with no accompanying report is the hard case: triage sees only the
     # beacon's own telemetry, which is exactly what a shore watch gets.
-    telemetry = beacon.telemetry() if (beacon and not fault.text) else ship.telemetry()
-    incident = _open_incident(req.mmsi, fault.text, telemetry, fault.label, req.source)
+    telemetry = beacon.telemetry() if (beacon and not text) else ship.telemetry()
+    incident = _open_incident(req.mmsi, text, telemetry, fault.label, req.source,
+                              comment or None)
     await _announce(incident)
     return incident
 
@@ -375,7 +383,11 @@ async def situation(mmsi: str):
     latest = mine[0] if mine else None
     return {
         "vessel": _ship_detail(s),
-        "nearby": nearby,
+        # Position and speed ride along so the bridge map can draw the line to a
+        # responder and keep its ETA current between polls.
+        "nearby": [{**r.model_dump(), "lat": round(sim.ships[r.mmsi].lat, 4),
+                    "lon": round(sim.ships[r.mmsi].lon, 4),
+                    "speed": round(sim.ships[r.mmsi].speed_kn, 1)} for r in nearby],
         "shoreStatus": _shore_status(latest),
         "messages": messages.get(mmsi, []),
         # Every incident this hull has raised, newest first, each carrying its own
@@ -438,10 +450,8 @@ def _shore_status(incident: Incident | None) -> dict:
                 "released": [p.recipient_name for p in approved]}
     if pending:
         return {"state": "awaiting_approval",
-                "text": f"Shore has received your alert and classified it as "
-                        f"{incident.triage.type.value}. "
-                        f"{len(pending)} notifications are drafted and awaiting "
-                        f"operator approval. Nothing has been released yet."}
+                "text": "Shore has received your alert and an operator is reviewing it "
+                        "now. Nothing has been sent onward yet."}
     return {"state": "rejected",
             "text": "Shore reviewed the drafted notifications and released none of "
                     "them. Contact the operations room directly."}

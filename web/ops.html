@@ -92,6 +92,14 @@
   .rv-tbl .pill { padding: 2px 7px; font-size: 9.5px; }
   .rv-cta { position: sticky; bottom: -24px; margin-top: 18px; padding: 12px 0 6px;
     background: linear-gradient(to top, var(--bg) 72%, transparent); }
+  /* Highlights first; everything else one click down, so the decision is on screen
+     without scrolling past the evidence for it. */
+  details.more { margin-top: 18px; border-top: 1px solid var(--line); }
+  details.more > summary { padding: 12px 0 4px; cursor: pointer; font-size: 12.5px;
+    font-weight: 500; color: var(--ink-3); }
+  details.more > summary:hover { color: var(--ink); }
+  .rv-said { margin: 0; padding: 8px 12px; font-size: 13.5px; line-height: 1.55; white-space: pre-line;
+    background: var(--bg-alt); border-left: 2px solid var(--accent); border-radius: var(--r-sm); }
   .pill.armed { background: color-mix(in srgb, var(--pink) 18%, var(--bg)); color: light-dark(#a3168c, #ff8df2); }
 </style></head>
 <body>
@@ -140,11 +148,16 @@
       <div class="overlay inspector" id="inspector"></div>
       <div class="overlay legend">
         <p class="eyebrow">Legend</p>
-        <div class="item"><span class="dot" style="background:#ff2d55"></span> in distress</div>
-        <div class="item"><span class="dot" style="background:#ff8705"></span> AIS dark</div>
-        <div class="item"><span class="dot" style="background:#10b981"></span> SAR capable</div>
-        <div class="item"><span class="dot" style="background:#1e9bd7"></span> container</div>
-        <div class="item"><span class="dot" style="background:#5b6b8c"></span> other merchant</div>
+        <div class="item"><span class="arrow" style="background:#ff2d55"></span> in distress</div>
+        <div class="item"><span class="arrow" style="background:#ff8705"></span> AIS dark</div>
+        <div class="item"><span class="arrow" style="background:#10b981"></span> naval / coastguard · SAR</div>
+        <div class="item"><span class="arrow" style="background:#c2845a"></span> tug · SAR</div>
+        <div class="item"><span class="arrow" style="background:#1e9bd7"></span> cargo</div>
+        <div class="item"><span class="arrow" style="background:#8b5cf6"></span> tanker / gas</div>
+        <div class="item"><span class="arrow" style="background:#eab308"></span> passenger</div>
+        <div class="item"><span class="arrow" style="background:#9ca3af"></span> fishing</div>
+        <div class="item"><span class="arrow" style="background:#5b6b8c"></span> research</div>
+        <div class="item"><span class="dot" style="background:var(--ink-3)"></span> stopped</div>
       </div>
     </div>
 
@@ -478,26 +491,9 @@ function stepPane(i, st) {
       <span class="${isHeld(s) ? "held" : ""}">${isHeld(s) ? "HELD" : "OPERATIONAL"}</span></div>
     <div class="rv-cls">${labelOf(i, p)}</div>
     <div class="rv-to">${esc(p.recipient_name)}</div>
-    <p class="rv-who">${SESN.RECIPIENTS[p.recipient_class]?.plain || ""}</p>
-    ${isHeld(s) ? `<p class="disclaimer"><span>Held for a company decision</span>${HELD_NOTE[p.recipient_class] || ""}</p>` : ""}
     ${DECIDE[p.recipient_class] ? `<div class="rv-decide"><span>You are deciding</span>
       ${DECIDE[p.recipient_class](i, p)}</div>` : ""}
-    ${(p.reasoning || []).length ? `
-      <p class="eyebrow" style="margin-top:16px">How this draft was decided</p>
-      <p class="muted" style="margin:0 0 8px;font-size:11.5px">Only lines tagged AI are a
-        model's judgement. Procedure and positions are fixed rules applied to that
-        judgement, identical on every replay. If the AI line is wrong, everything under it is.</p>
-      <ol class="rv-rec rv-chain">${p.reasoning.map(a => `<li class="b-${a.basis}">
-        <span class="tag">${basisTag(i, a.basis)}</span><span>${esc(a.text)}</span></li>`).join("")}</ol>` : ""}
-    ${STEP_BRIEF[p.recipient_class] ? `<div class="rv-brief">
-      <div><p class="eyebrow">What it asks them</p><p>${STEP_BRIEF[p.recipient_class].asks}</p></div>
-      <div><p class="eyebrow">After you release</p><p>${STEP_BRIEF[p.recipient_class].after}</p></div>
-    </div>` : ""}
-    <p class="eyebrow" style="margin-top:14px">Key facts in this message</p>
-    <dl class="kv rv-facts">${stepFacts(i, p)}</dl>
-    <p class="eyebrow" style="margin-top:14px">Full text as it will be sent</p>
-    <div style="font-weight:600;margin:4px 0 4px">${esc(p.subject)}</div>
-    <pre style="max-height:46vh">${esc(p.body)}</pre>
+    ${isHeld(s) ? `<p class="disclaimer"><span>Held for a company decision</span>${HELD_NOTE[p.recipient_class] || ""}</p>` : ""}
     ${!undecided(s)
       ? `<div class="rv-done">${p.approved ? "Released" : "Rejected"}. Recorded in the audit log.
          ${nextOpen >= 0 ? `<button class="btn sm" style="margin-left:8px"
@@ -515,7 +511,27 @@ function stepPane(i, st) {
            <button class="btn go" onclick="askConfirm(${review.step})">Approve &amp; release</button>
            <button class="btn danger" onclick="decide('reject')">Reject</button>
            ${nextOpen >= 0 ? `<button class="btn ghost" onclick="goStep(${nextOpen})">Skip for now</button>` : ""}
-         </div>`}`;
+         </div>`}
+    <details class="more" data-k="step">
+      <summary>Full message text, key facts and how this draft was decided</summary>
+      <p class="rv-who">${SESN.RECIPIENTS[p.recipient_class]?.plain || ""}</p>
+      <p class="eyebrow" style="margin-top:14px">Full text as it will be sent</p>
+      <div style="font-weight:600;margin:4px 0 4px">${esc(p.subject)}</div>
+      <pre style="max-height:46vh">${esc(p.body)}</pre>
+      <p class="eyebrow" style="margin-top:14px">Key facts in this message</p>
+      <dl class="kv rv-facts">${stepFacts(i, p)}</dl>
+      ${STEP_BRIEF[p.recipient_class] ? `<div class="rv-brief">
+        <div><p class="eyebrow">What it asks them</p><p>${STEP_BRIEF[p.recipient_class].asks}</p></div>
+        <div><p class="eyebrow">After you release</p><p>${STEP_BRIEF[p.recipient_class].after}</p></div>
+      </div>` : ""}
+      ${(p.reasoning || []).length ? `
+        <p class="eyebrow" style="margin-top:16px">How this draft was decided</p>
+        <p class="muted" style="margin:0 0 8px;font-size:11.5px">Only lines tagged AI are a
+          model's judgement. Procedure and positions are fixed rules applied to that
+          judgement, identical on every replay. If the AI line is wrong, everything under it is.</p>
+        <ol class="rv-rec rv-chain">${p.reasoning.map(a => `<li class="b-${a.basis}">
+          <span class="tag">${basisTag(i, a.basis)}</span><span>${esc(a.text)}</span></li>`).join("")}</ol>` : ""}
+    </details>`;
 }
 
 const bulkPane = (i, opOpen) => `
@@ -549,33 +565,46 @@ const briefPane = (i, st) => {
   const drafted = new Set(i.packets.map(p => p.recipient_mmsi).filter(Boolean));
   const left = st.filter(undecided).length;
   const first = st.findIndex(undecided);
+  const rec = i.recommendation || [];
+  const now = rec.filter(a => a.urgency === "now");
+  const said = i.crew_comment || (i.injected_fault ? "" : i.report_text);
+  const recItem = a => `<li class="u-${a.urgency}">
+    <span class="tag">${URGENCY[a.urgency] || a.urgency}</span><span>${esc(a.text)}</span></li>`;
   return `
-    <div class="rv-crumb">Assessment · read before releasing anything</div>
+    <div class="rv-crumb">Assessment · ${t.provider === "baseline" ? "deterministic baseline" : "AI-generated, can be wrong"}</div>
     <div class="rv-to" style="margin-top:8px">${t.type}
       <span class="pill sev-${t.severity}">${SEV[t.severity]}</span></div>
+    <p style="margin:6px 0 0">${esc(t.rationale) || "No rationale recorded."}</p>
+
+    ${said ? `<p class="eyebrow" style="margin-top:14px">Crew said</p>
+      <p class="rv-said">${esc(said)}</p>` : ""}
+
+    ${now.length ? `<p class="eyebrow" style="margin-top:14px">Do now</p>
+      <ol class="rv-rec">${now.map(recItem).join("")}</ol>` : ""}
+
+    <details class="more" data-k="brief">
+      <summary>More: classifier, ${t.unknowns.length} unknown${t.unknowns.length === 1 ? "" : "s"},
+        full response plan, ${(i.responders || []).length} vessels in range</summary>
     <p class="disclaimer"><span>${t.provider === "baseline" ? "Deterministic baseline" : "AI-generated"}</span>
       Classified by <b>${esc(t.provider)}</b> at confidence <b>${t.confidence.toFixed(2)}</b>
       in ${t.latency_ms} ms.
       ${t.provider === "baseline" ? "No LLM key configured, this is the deterministic floor."
         : "A model's judgement, and it can be wrong. The deterministic baseline classifier runs alongside as the floor."}</p>
 
-    <p class="eyebrow" style="margin-top:15px">Basis</p>
-    <p style="margin:0">${esc(t.rationale) || "No rationale recorded."}</p>
-
     <p class="eyebrow" style="margin-top:14px">Declared unknowns</p>
     ${t.unknowns.length
       ? `<ul class="rv-unk">${t.unknowns.map(u => `<li>${esc(u)}</li>`).join("")}</ul>`
       : `<p class="muted" style="margin:0">None declared.</p>`}
+
+    ${i.report_text && i.report_text !== said ? `<p class="eyebrow" style="margin-top:14px">Report as received</p>
+      <p class="rv-said">${esc(i.report_text)}</p>` : ""}
 
     <p class="eyebrow" style="margin-top:16px">Recommended response</p>
     <p class="muted" style="margin:0 0 9px;font-size:11.5px">Derived from the
       classification above and the positions below. This part is a standing procedure,
       not a model output: it is identical on every replay of this scenario.</p>
     <ol class="rv-rec">
-      ${(i.recommendation || []).map(a => `<li class="u-${a.urgency}">
-        <span class="tag">${URGENCY[a.urgency] || a.urgency}</span>
-        <span>${esc(a.text)}</span></li>`).join("")
-        || `<li class="u-caution"><span>No recommendation recorded.</span></li>`}
+      ${rec.map(recItem).join("") || `<li class="u-caution"><span>No recommendation recorded.</span></li>`}
     </ol>
 
     <p class="eyebrow" style="margin-top:16px">In range, ranked</p>
@@ -594,6 +623,7 @@ const briefPane = (i, st) => {
             ${drafted.has(r.mmsi) ? `<span class="pill pending">drafted</span>` : ""}</td>
       </tr>`).join("") || `<tr><td colspan="5" class="muted">Nothing within range.</td></tr>`}
     </table>
+    </details>
 
     <div class="row rv-cta">
       ${left ? `<button class="btn primary" onclick="goStep(${first})">
@@ -786,7 +816,6 @@ $("#agents").innerHTML = AGENTS.map((a, n) => `
 
 window.signIn = a => {
   agent = a;
-  localStorage.setItem("sesn.operator", JSON.stringify(a));
   $("#whoami").textContent = `On watch: ${a.name}${a.role ? " · " + a.role : ""}`;
   $("#signout").hidden = false; $("#gate").hidden = true;
 };
@@ -798,17 +827,14 @@ $("#agent-other").onkeydown = e => { if (e.key === "Enter") signInOther(); };
 window.showGate = () => { $("#gate").hidden = false; };
 window.signOut = () => {
   agent = null;
-  localStorage.removeItem("sesn.operator");
   if ($("#review").open) closeReview();
   closeInspector();
   $("#whoami").textContent = ""; $("#signout").hidden = true;
   showGate();
 };
 
-try {
-  const saved = JSON.parse(localStorage.getItem("sesn.operator"));
-  if (saved?.name) signIn(saved);
-} catch { /* nothing remembered, or unreadable: the gate stays up */ }
+// Nothing is remembered: every load asks who is on watch, so an approval is never
+// recorded against whoever sat at this browser last.
 loadQueue();
 </script>
 </body></html>

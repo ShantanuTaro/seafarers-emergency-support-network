@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head>
+<html lang="en" data-theme="dark"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SESN Bridge</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.min.css">
@@ -13,6 +13,13 @@
   .resp .d { min-width: 78px; text-align: right; white-space: nowrap;
              font: 600 13px/1.4 var(--font-mono); }
   .resp .d small { display: block; font: 400 11.5px/1.4 var(--font); color: var(--ink-3); }
+  button.resp { width: 100%; text-align: left; font: inherit; color: var(--ink); cursor: pointer; }
+  button.resp:hover { border-color: var(--line-strong); }
+  button.resp.on { border-color: #4285f4; box-shadow: inset 3px 0 0 #4285f4; }
+  .assist-label { padding: 5px 9px; font: 500 12px/1.35 var(--font); color: var(--ink);
+    background: var(--bg); border: 1px solid #4285f4; border-radius: var(--r-sm);
+    pointer-events: none; white-space: nowrap; text-align: center; }
+  .assist-label small { display: block; font-size: 10.5px; color: var(--ink-3); }
 
   /* ---- raise button and incident list ---------------------------------- */
 
@@ -50,27 +57,33 @@
   .dlg-confirm .c-ttl { margin-bottom: 8px; font-size: 18px; font-weight: 600; letter-spacing: -.02em; }
   .dlg-confirm p { margin: 0 0 8px; font-size: 14.5px; line-height: 1.6; }
 
-  /* The one-sentence answer to "is anyone coming", on the wash: the calmest surface there is. */
-  /* Pulses once shore has actually released something: the one line a crew is waiting for.
-     A 2 s cycle divides the 4 s poll, so a repaint does not visibly jump the animation. */
-  .plain-lead.acted { color: var(--yes-ink); background: var(--yes-bg);
-    border: 1px solid color-mix(in srgb, var(--yes-ink) 45%, transparent);
-    animation: acted 2s ease-in-out infinite; }
-  @keyframes acted { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--yes-ink) 20%, transparent); } }
-  @media (prefers-reduced-motion: reduce) { .plain-lead.acted { animation: none; } }
-  .plain-lead { margin-bottom: 22px; padding: 18px 20px; font-size: 17px; font-weight: 500;
-    line-height: 1.55; letter-spacing: -.01em; background: var(--wash);
-    border: 1px solid var(--line); border-radius: var(--r-lg); }
-  .plain { margin: 0; font-size: 15px; line-height: 1.65; color: var(--ink-2); }
-  .need { margin: 0; padding-left: 20px; font-size: 14.5px; line-height: 1.75; color: var(--no-ink); }
-  .who-card { margin-bottom: 10px; padding: 14px 16px; background: var(--bg);
-    border: 1px solid var(--line); border-radius: var(--r-md); }
-  .who-card strong { font-size: 15px; font-weight: 600; }
-  .who-card .role { margin: 6px 0 0; font-size: 13.5px; line-height: 1.6; color: var(--ink-2); }
-  .who-card .st { margin: 10px 0 0; font-size: 14px; line-height: 1.55; }
-  .who-card .st .pill { margin-right: 6px; }
-  .who-card .d { text-align: right; white-space: nowrap; font: 600 13px/1.4 var(--font-mono); }
-  .who-card .d small { display: block; font: 400 11.5px/1.4 var(--font); color: var(--ink-3); }
+  /* The incident window holds two things: what the crew raised, and what shore has
+     actually done. No classifier output, no drafts, no recipient explanations. The
+     crew is in the middle of an emergency and has no time to read them. */
+  .raised { padding: 16px 18px; background: var(--wash); border: 1px solid var(--line);
+    border-radius: var(--r-lg); }
+  .raised .note { margin: 0 0 8px; font-size: 16px; line-height: 1.55; white-space: pre-line; }
+  .done-list { margin: 0; padding: 0; list-style: none; }
+  .done-list li { margin-bottom: 10px; padding: 14px 16px; background: var(--yes-bg);
+    border: 1px solid color-mix(in srgb, var(--yes-ink) 35%, transparent); border-radius: var(--r-md); }
+  .done-list strong { display: block; font-size: 16px; font-weight: 600; color: var(--yes-ink); }
+  .done-list .eta { margin-top: 4px; font: 600 14px/1.4 var(--font-mono); }
+  .done-list .by { margin-top: 4px; font: 12px/1.4 var(--font-mono); color: var(--ink-3); }
+
+  /* Waiting for shore: a sonar ping. Its phase is set from the clock on every render
+     (--p), so the four-second poll repainting the window never visibly restarts it. */
+  .waiting { display: flex; align-items: center; gap: 18px; padding: 18px 20px;
+    background: var(--no-bg); border: 1px solid color-mix(in srgb, var(--orange) 35%, transparent);
+    border-radius: var(--r-lg); }
+  .waiting strong { display: block; font-size: 17px; font-weight: 600; color: var(--no-ink); }
+  .ping { position: relative; flex: none; width: 48px; height: 48px; }
+  .ping i, .ping::before, .ping::after { content: ""; position: absolute; inset: 0; margin: auto;
+    border-radius: 50%; }
+  .ping i { width: 12px; height: 12px; background: var(--orange); }
+  .ping::before, .ping::after { border: 2px solid var(--orange); animation: ping 2s ease-out infinite; }
+  .ping::before { animation-delay: var(--p); }
+  .ping::after { animation-delay: calc(var(--p) - 1s); }
+  @keyframes ping { from { transform: scale(.25); opacity: 1; } to { transform: scale(1); opacity: 0; } }
 
   /* ---- sign-in --------------------------------------------------------- */
 
@@ -151,10 +164,16 @@
       <div class="overlay inspector" id="inspector"></div>
       <div class="overlay legend">
         <p class="eyebrow">Tap a ship</p>
-        <div class="item"><span class="dot" style="background:#4285f4;box-shadow:0 0 0 2px #fff, 0 0 0 3px var(--line-strong)"></span> your vessel</div>
-        <div class="item"><span class="dot" style="background:#ff2d55"></span> in distress</div>
-        <div class="item"><span class="dot" style="background:#10b981"></span> can assist</div>
-        <div class="item"><span class="dot" style="background:#1e9bd7"></span> merchant traffic</div>
+        <div class="item"><span class="arrow" style="background:#4285f4;width:10px;height:12px"></span> your vessel</div>
+        <div class="item"><span class="arrow" style="background:#ff2d55"></span> in distress</div>
+        <div class="item"><span class="arrow" style="background:#10b981"></span> naval / coastguard · can assist</div>
+        <div class="item"><span class="arrow" style="background:#c2845a"></span> tug · can assist</div>
+        <div class="item"><span class="arrow" style="background:#1e9bd7"></span> cargo</div>
+        <div class="item"><span class="arrow" style="background:#8b5cf6"></span> tanker / gas</div>
+        <div class="item"><span class="arrow" style="background:#eab308"></span> passenger</div>
+        <div class="item"><span class="arrow" style="background:#9ca3af"></span> fishing</div>
+        <div class="item"><span class="arrow" style="background:#ff8705"></span> AIS dark</div>
+        <div class="item"><span class="dot" style="background:var(--ink-3)"></span> stopped</div>
       </div>
     </div>
 
@@ -165,7 +184,8 @@
       <div class="scroll" id="right" hidden>
         <p class="eyebrow">Nearest assistance</p>
         <p class="muted" style="margin:0 0 11px">Ranked by distance, with dedicated search and
-        rescue assets weighted ahead of merchant traffic at comparable range.</p>
+        rescue assets weighted ahead of merchant traffic at comparable range. Tap one to
+        see it on the map.</p>
         <div id="nearby"></div>
 
         <p class="eyebrow" style="margin-top:22px">Messages with shore</p>
@@ -186,6 +206,7 @@ const { $, $$, esc, num, position, SEV, NAV } = SESN;
 
 let me = null, faults = [], poll, mineNow = null, centred = false;
 let situation = null, raising = null, openIncident = null;
+let assist = null;   // the nearby responder the master tapped, with its last known position
 
 const map = SESN.map("map", { center: [20, 20], zoom: 2 });
 map.on("load", () => {
@@ -207,14 +228,29 @@ map.on("load", () => {
       "circle-color": "#4285f4", "circle-opacity": 0.18, "circle-blur": 0.5,
     },
   });
+  // Same symbols as the fleet (arrow, hull close in, circle when stopped), in blue and
+  // a size up, so own ship reads as a ship with a heading and still stands out.
+  const own = moving => ["case", ["==", ["get", "st"], 1], "dot-own", moving];
   map.addLayer({
-    id: "me-dot", type: "circle", source: "me",
-    paint: {
-      "circle-radius": ["interpolate", ["linear"], ["zoom"], 2, 5, 7, 7.5, 13, 10],
-      "circle-color": "#4285f4",
-      "circle-stroke-width": 2.5, "circle-stroke-color": "#ffffff",
+    id: "me-dot", type: "symbol", source: "me",
+    layout: {
+      "icon-image": ["step", ["zoom"], own("arrow-own"), 8, own("hull-own")],
+      "icon-size": ["interpolate", ["linear"], ["zoom"], 2, 0.6, 8, 1.1, 13, 1.7],
+      "icon-rotate": ["get", "c"], "icon-rotation-alignment": "map",
+      "icon-allow-overlap": true, "icon-ignore-placement": true,
     },
   });
+
+  // Under the ship symbols, so the line never hides the hull it is pointing at.
+  map.addSource("assist", { type: "geojson", data: SESN.fc([]) });
+  map.addLayer({
+    id: "assist-line", type: "line", source: "assist",
+    layout: { "line-cap": "round" },
+    paint: { "line-color": "#4285f4", "line-width": 2.5, "line-dasharray": [2, 1.5] },
+  }, "halo");
+});
+const assistLabel = new maplibregl.Marker({
+  element: Object.assign(document.createElement("div"), { className: "assist-label" }),
 });
 
 /* Own position comes from the tick when the frame carries it and from the last
@@ -227,10 +263,62 @@ function drawMe(frame) {
   if (!me) return src.setData(SESN.fc([]));
   const row = (frame?.rows || []).find(r => String(r[0]) === String(me));
   const lat = row ? row[1] : mineNow?.lat, lon = row ? row[2] : mineNow?.lon;
+  const c = row ? row[3] : mineNow?.course, st = row ? row[5] & 8 : mineNow?.speed < 0.5;
   src.setData(SESN.fc(lat === undefined || lat === null ? [] : [{
-    type: "Feature", geometry: { type: "Point", coordinates: [lon, lat] }, properties: {},
+    type: "Feature", geometry: { type: "Point", coordinates: [lon, lat] },
+    properties: { c: c || 0, st: st ? 1 : 0 },
   }]));
 }
+
+/* The line from a responder to us, and the range and closing time along it.
+
+   Straight, and labelled as straight. It can cross a headland, and a master who read
+   it as a track would be misled, so it says "not a route" on the map itself. ETA is
+   range over the responder's current speed, the same arithmetic as the list, so the
+   two never disagree about who is closer in time. */
+function assistGeometry(own, r) {
+  // Across the antimeridian a responder at 179.9W is a few miles from us at 179.9E,
+  // and a line between the raw longitudes goes the long way round the planet.
+  const d = r.lon - own.lon;
+  const lon = r.lon + (d > 180 ? -360 : d < -180 ? 360 : 0);
+  const nm = SESN.distanceNm(own, r);
+  return { coords: [[lon, r.lat], [own.lon, own.lat]], nm,
+           hours: r.speed > 0.5 ? nm / r.speed : null };
+}
+
+function drawAssist(frame) {
+  const src = map.getSource("assist");
+  if (!src) return null;
+  const rows = frame?.rows || [];
+  const ownRow = rows.find(r => String(r[0]) === String(me));
+  const own = ownRow ? { lat: ownRow[1], lon: ownRow[2] } : mineNow;
+  if (!assist || !own) {
+    src.setData(SESN.fc([]));
+    assistLabel.remove();
+    return null;
+  }
+  const row = rows.find(r => String(r[0]) === String(assist.mmsi));
+  if (row) { assist.lat = row[1]; assist.lon = row[2]; }
+  const g = assistGeometry(own, assist);
+  src.setData(SESN.fc([{ type: "Feature", properties: {},
+    geometry: { type: "LineString", coordinates: g.coords } }]));
+  assistLabel.getElement().innerHTML = `<strong>${esc(assist.name)}</strong><br>
+    ${g.nm.toFixed(1)} nm · ${g.hours ? "about " + plainEta(g.hours) : "not under way"}
+    <small>straight line, not a route</small>`;
+  assistLabel.setLngLat([(g.coords[0][0] + g.coords[1][0]) / 2,
+                         (g.coords[0][1] + g.coords[1][1]) / 2]).addTo(map);
+  return g;
+}
+
+// Tap to draw and frame both ships, tap again to clear.
+window.pickAssist = mmsi => {
+  const r = situation?.nearby.find(x => x.mmsi === mmsi);
+  assist = !r || assist?.mmsi === mmsi ? null : { ...r };
+  const g = drawAssist(null);
+  if (g) map.fitBounds(new maplibregl.LngLatBounds(g.coords[0], g.coords[0]).extend(g.coords[1]),
+                       { padding: 90, maxZoom: 9, duration: 800 });
+  if (situation) SESN.repaint($("#nearby"), nearbyList(situation));
+};
 
 /* Any contact on the map, from the bridge's point of view: what it is, what it is
    carrying, and how far off it is from us. A master looking at the traffic around a
@@ -283,6 +371,7 @@ const link = SESN.connect({
   onFrame: f => {
     if (map.getSource("fleet")) map.getSource("fleet").setData(SESN.frameToGeoJSON(f));
     drawMe(f);
+    drawAssist(f);
   },
   onIncident: inc => { if (me && inc.mmsi === me) refresh(); },
   onMessage: m => { if (m.mmsi === me) refresh(); },
@@ -338,11 +427,9 @@ window.pickOnMap = () => {
 };
 
 window.signIn = async mmsi => {
-  // A remembered hull can be gone: the fleet is regenerated whenever its seed or its
-  // naming changes. Back to the gate, not a bridge view that 404s every four seconds.
   try { await SESN.api("/api/vessel/" + mmsi); }
-  catch { localStorage.removeItem("sesn.vessel"); return showGate(); }
-  me = mmsi; centred = false; localStorage.setItem("sesn.vessel", mmsi);
+  catch { return showGate(); }
+  me = mmsi; centred = false; assist = null; drawAssist(null);
   $("#gate").hidden = true; $("#pickbar").hidden = true; $("#switch").hidden = false;
   $("#reply").value = ""; closeContact(); refresh();
   clearInterval(poll); poll = setInterval(refresh, 4000);
@@ -350,8 +437,7 @@ window.signIn = async mmsi => {
 
 window.signOut = () => {
   clearInterval(poll);
-  me = null; mineNow = null; situation = null;
-  localStorage.removeItem("sesn.vessel");
+  me = null; mineNow = null; situation = null; assist = null; drawAssist(null);
   if ($("#raise-dlg").open) $("#raise-dlg").close();
   if ($("#inc-dlg").open) $("#inc-dlg").close();
   $("#left").innerHTML = SIGNED_OUT; $("#right").hidden = true;
@@ -426,6 +512,10 @@ async function refresh() {
     </div>`);
 
   $("#right").hidden = false;
+  // Keep speed current for the ETA. A responder that dropped off the list keeps its
+  // line from the frame, because the master asked about that ship, not a rank.
+  if (assist) Object.assign(assist, s.nearby.find(r => r.mmsi === assist.mmsi));
+  drawAssist(null);
   SESN.repaint($("#nearby"), nearbyList(s));
   // The thread is written only when a message actually arrived. Rewriting identical
   // HTML every poll still reflows it, which reads as the conversation twitching.
@@ -437,31 +527,28 @@ async function refresh() {
   if (openIncident) renderIncident();   // keep an open window live as the poll lands
 }
 
-/* One row per incident: what it was called, when, and the one number that matters,
-   which is how many of the messages about it have actually left the building. */
+/* One row per incident: what the crew raised, when, and whether shore has acted. */
+const raisedLabel = i => i.injected_fault || "Report to shore";
 const incRow = i => {
-  const t = i.triage, released = i.actions.filter(a => a.state === "released").length;
+  const released = i.actions.filter(a => a.state === "released").length;
   const pending = i.actions.filter(a => a.state === "pending").length;
-  return `<button class="inc-row ${pending ? "waiting" : "done"}"
+  return `<button class="inc-row ${released ? "done" : "waiting"}"
     onclick="openIncident='${i.id}';renderIncident()">
-    <div class="split">
-      <strong>${t.type}</strong>
-      <span class="pill sev-${t.severity}">${SEV[t.severity]}</span>
-    </div>
+    <strong>${esc(raisedLabel(i))}</strong>
     <div class="when">${i.opened_at.slice(11, 19)}Z · ${i.opened_at.slice(0, 10)}</div>
-    <div class="sum">${released
-      ? `${released} of ${i.actions.length} messages sent`
-      : `nothing sent yet`}${pending ? ` · ${pending} waiting on shore` : ""}</div>
+    <div class="sum">${released ? `${released} action${released === 1 ? "" : "s"} taken by shore`
+      : pending ? "waiting for shore" : "nothing sent onward"}</div>
   </button>`;
 };
 
 const nearbyList = s => s.nearby.length ? s.nearby.map(r => `
-    <div class="resp">
+    <button class="resp ${assist?.mmsi === r.mmsi ? "on" : ""}" onclick="pickAssist('${r.mmsi}')"
+      aria-pressed="${assist?.mmsi === r.mmsi}">
       <div><strong>${esc(r.name)}</strong>
         <div class="muted" style="font-size:11.5px">${r.kind}${r.sar_capable ? " · SAR capable" : ""}</div></div>
       <div class="d">${r.distance_nm} nm
         <small>${r.eta_hours ? r.eta_hours + " h" : "not under way"}</small></div>
-    </div>`).join("") : `<p class="muted">No traffic within range.</p>`;
+    </button>`).join("") : `<p class="muted">No traffic within range.</p>`;
 
 const threadHtml = messages => messages.length ? messages.map(m => `<div class="msg ${m.frm}">
     <div class="who">${m.frm === "shore" ? "operations room" : "this vessel"} ·
@@ -509,9 +596,10 @@ function renderRaise() {
           <p>Your position, course, speed and ${mineNow?.pob ?? "the"} persons aboard are
           attached automatically. ${f.beacon
             ? `This also activates your ${f.beacon} beacon.` : "You do not have to type anything."}</p>
-          <p class="muted">The operations room ashore sees it immediately. A named operator
-          then reads it, decides what it is, and approves each message before anything is
-          sent onward. You will see every step of that on this screen.</p>
+          <label for="comment" style="margin-top:14px">Anything to add? Optional</label>
+          <textarea id="comment" rows="3" placeholder="Injuries, what you can see, what help you need…"></textarea>
+          <p class="muted" style="margin-top:8px">Shore sees it immediately. Every step
+          they take shows on this screen.</p>
           <div class="row" style="margin-top:14px">
             <button class="btn ghost lg" onclick="pickFault('${raising.key}')">Back</button>
             <button class="btn danger lg" onclick="sendRaise(this)">Send to shore</button>
@@ -546,9 +634,10 @@ const busy = btn => { sending = true; if (btn) { btn.disabled = true; btn.textCo
 
 window.sendRaise = async btn => {
   if (sending) return;
+  const comment = $("#comment")?.value.trim() || "";
   busy(btn);
   try {
-    await SESN.post("/api/inject", { mmsi: me, fault: raising.key, source: "bridge-terminal" });
+    await SESN.post("/api/inject", { mmsi: me, fault: raising.key, source: "bridge-terminal", comment });
   } catch (e) { raising.err = e.message; raising.confirming = false; return renderRaise(); }
   finally { sending = false; }
   closeRaise();
@@ -586,87 +675,61 @@ window.closeIncident = () => { openIncident = null; $("#inc-dlg").close(); };
 function renderIncident() {
   const i = situation?.incidents?.find(x => x.id === openIncident);
   if (!i) return closeIncident();
-  const t = i.triage;
   const released = i.actions.filter(a => a.state === "released");
-  const pending = i.actions.filter(a => a.state === "pending");
+  const pending = i.actions.some(a => a.state === "pending");
+  // Only the crew's own words: the canned report behind a button is not what they typed.
+  const said = i.crew_comment || (i.injected_fault ? "" : i.report_text);
 
   SESN.repaint($("#inc-dlg"), `
     <div class="dlg-head">
       <div>
-        <div class="dlg-ttl">${t.type}
-          <span class="pill sev-${t.severity}">${SEV[t.severity]}</span></div>
+        <div class="dlg-ttl">${esc(raisedLabel(i))}</div>
         <div class="muted">Raised ${i.opened_at.slice(11, 19)}Z on ${i.opened_at.slice(0, 10)}
           from ${esc(i.vessel_name)}</div>
       </div>
       <button class="x" onclick="closeIncident()" title="close">×</button>
     </div>
     <div class="dlg-body">
-      <div class="plain-lead ${released.length ? "acted" : ""}">${leadLine(i, released, pending)}</div>
+      <p class="eyebrow">You raised</p>
+      <div class="raised">
+        ${said ? `<p class="note">“${esc(said)}”</p>` : ""}
+        <div class="muted">Position, course, speed and persons aboard went with it.</div>
+      </div>
 
-      <p class="eyebrow">What shore understood</p>
-      <p class="plain">${esc(t.rationale) || "No reasoning was recorded."}</p>
-      <p class="disclaimer"><span>Computer classification</span>Worked out by
-      ${esc(t.provider)}, a computer classifier, and checked by the operator who read your
-      report. It is a starting point, not a finding. If it is wrong, say so in a message to
-      shore.</p>
-
-      ${t.unknowns.length ? `
-        <p class="eyebrow" style="margin-top:20px">What shore still needs to know</p>
-        <p class="muted" style="margin:0 0 8px">Nobody ashore can answer these. You can.
-        Anything you send sharpens the response.</p>
-        <ul class="need">${t.unknowns.map(u => `<li>${esc(u)}</li>`).join("")}</ul>` : ""}
-
-      <p class="eyebrow" style="margin-top:20px">Who has been told</p>
-      <p class="muted" style="margin:0 0 10px">Shore writes a different message for each
-      of these, because each one needs something different from you. Nothing is sent
-      until a named person ashore approves it.</p>
-      ${i.actions.map(who).join("")}
+      <p class="eyebrow" style="margin-top:22px">What shore has done</p>
+      ${released.length ? `<ul class="done-list">${released.map(done).join("")}</ul>` : ""}
+      ${pending ? `<div class="waiting">
+          <span class="ping" style="--p:-${Date.now() % 2000}ms"><i></i></span>
+          <div><strong>${released.length ? "Shore is still working on it" : "Waiting for shore"}</strong>
+            <div class="muted">${released.length ? "Anything else they do appears here."
+              : "Your alert has reached the operations room and an operator is on it. What they do appears here."}</div></div>
+        </div>`
+      : released.length ? "" : `<div class="bigstate alarm"><div class="head">Nothing sent onward</div>
+          Shore reviewed your alert and sent nothing. Call the operations room on the radio.</div>`}
     </div>`, ".dlg-body", i.id);
 
   const d = $("#inc-dlg");
   if (!d.open) d.showModal();
 }
 
-/* The one-sentence answer to "is anyone coming". */
-function leadLine(i, released, pending) {
-  const coming = released.filter(a => a.distance_nm !== null);
-  if (!released.length && pending.length)
-    return `Shore has your alert and has written ${pending.length} message${pending.length === 1
-      ? "" : "s"} about it. A named operator is reading them now. Nothing has been sent yet.`;
-  if (!released.length)
-    return `Shore reviewed the messages and released none of them. Call the operations
-      room directly on the radio.`;
-  if (!coming.length)
-    return `${released.length} message${released.length === 1 ? " has" : "s have"} been sent,
-      including to the rescue authority for your area. No ship has been tasked to you yet.`;
-  const first = coming.slice().sort((a, b) => (a.eta_hours ?? 99) - (b.eta_hours ?? 99))[0];
-  return `${esc(first.recipient_name.split(" (")[0])} has been asked to come to you. She is
-    ${first.distance_nm} nm away${first.eta_hours
-      ? `, roughly ${plainEta(first.eta_hours)} at her current speed` : " and is not under way"}.`;
-}
-
 const plainEta = h => h < 1 ? `${Math.round(h * 60)} minutes`
   : h < 2 ? "just over an hour" : `${Math.round(h)} hours`;
 
-/* One recipient, in plain words: who they are, what was done, and when they arrive. */
-const who = a => {
-  const r = SESN.RECIPIENTS[a.recipient_class] || {};
-  const state = a.state === "released"
-    ? `<span class="pill approved">sent</span> Released by ${esc(a.decided_by || "a shore operator")}${
-        a.decided_at ? ` at ${a.decided_at.slice(11, 19)}Z` : ""}.`
-    : a.state === "declined"
-    ? `<span class="pill rejected">not sent</span> ${esc(a.decided_by || "The operator")} decided
-       against sending this one.`
-    : `<span class="pill pending">waiting</span> Written and sitting with the shore operator.
-       It has not been sent.`;
-  return `<div class="who-card">
-    <div class="split"><strong>${esc(a.recipient_name)}</strong>
-      ${a.distance_nm !== null ? `<span class="d">${a.distance_nm} nm<small>${
-        a.eta_hours ? plainEta(a.eta_hours) + " away" : "not under way"}</small></span>` : ""}</div>
-    <p class="role">${esc(r.plain || a.recipient_class)}</p>
-    <p class="st">${state}</p>
-  </div>`;
+/* One released action, in the fewest words that answer "who is doing what for us". */
+const shortName = a => esc(a.recipient_name.split(" (")[0]);
+const DONE = {
+  mrcc: a => `Rescue centre ${shortName(a)} notified. It is coordinating your rescue.`,
+  naval: a => `${shortName(a)} asked to come to you`,
+  merchant: a => `${shortName(a)}, a ship nearby, asked to assist`,
+  manager: () => "Your company's emergency contact briefed",
+  next_of_kin: () => "Your company's welfare team will contact families",
 };
+const done = a => `<li>
+    <strong>✓ ${DONE[a.recipient_class]?.(a) || esc(a.recipient_name)}</strong>
+    ${a.distance_nm !== null ? `<div class="eta">${a.distance_nm} nm away · ${
+      a.eta_hours ? "about " + plainEta(a.eta_hours) : "not under way"}</div>` : ""}
+    <div class="by">by ${esc(a.decided_by || "shore")}${a.decided_at ? " · " + a.decided_at.slice(11, 16) + "Z" : ""}</div>
+  </li>`;
 
 window.sendReply = async () => {
   const text = $("#reply").value.trim();
@@ -683,9 +746,9 @@ window.sendReply = async () => {
 $("#raise-dlg").addEventListener("close", () => { raising = null; });
 $("#inc-dlg").addEventListener("close", () => { openIncident = null; });
 
+// Nothing is remembered: every load starts at the sign-in gate, so a demo never opens
+// aboard whichever hull the last person picked.
 $("#left").innerHTML = SIGNED_OUT;
-const saved = localStorage.getItem("sesn.vessel");
-$("#gate").hidden = !!saved;   // a remembered hull goes straight to its bridge, no flash of the gate
 
 SESN.api("/api/directory").then(d => {
   const fill = (id, items) => $(id).insertAdjacentHTML("beforeend",
@@ -694,9 +757,7 @@ SESN.api("/api/directory").then(d => {
   fill("#f-kind", d.kinds); fill("#f-flag", d.flags);
 });
 
-SESN.api("/api/faults").then(f => {
-  faults = f;
-  if (saved) signIn(saved); else { $("#f-q").focus(); findVessels(); }
-});
+SESN.api("/api/faults").then(f => { faults = f; });
+$("#f-q").focus(); findVessels();
 </script>
 </body></html>

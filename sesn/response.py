@@ -144,7 +144,8 @@ def build_packets(incident: Incident, vessel: Ship,
                 f"COURSE/SPEED: {vessel.course:.0f}T / {vessel.speed_kn:.1f} kn\n"
                 f"NAV STATUS: {vessel.nav_status}\n"
                 f"SAR REGION: {region}\n\n"
-                f"UNCONFIRMED AT TIME OF SENDING:\n{unknowns}\n\n"
+                + (f"CREW COMMENT: {incident.crew_comment}\n\n" if incident.crew_comment else "")
+                + f"UNCONFIRMED AT TIME OF SENDING:\n{unknowns}\n\n"
                 f"BASIS: {t.rationale}\n\n{GMDSS_FOOTER}"
             ),
         ),

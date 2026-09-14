@@ -66,9 +66,13 @@ const SESN = (() => {
     // reader. Navigating to a different packet is not a repaint, and restoring the
     // previous one's offset would drop the operator into the middle of a draft they
     // have not started reading. Callers that only ever show one view pass no key.
-    const before = el.dataset.view === key ? find()?.scrollTop : 0;
+    const same = el.dataset.view === key;
+    const before = same ? find()?.scrollTop : 0;
+    // Same for a "more" section the reader opened: a tick must not snap it shut.
+    const open = same ? [...el.querySelectorAll("details[open][data-k]")].map(d => d.dataset.k) : [];
     el.innerHTML = html;
     el.dataset.view = key;
+    for (const k of open) el.querySelector(`details[data-k="${k}"]`)?.setAttribute("open", "");
     const box = find();
     if (box && before) box.scrollTop = before;
   }
@@ -143,67 +147,128 @@ const SESN = (() => {
           "circle-blur": 0.45,
         },
       });
+      /* Two rings rippling off every casualty, half a cycle apart. On a world map a
+         moving thing is found before a red one. Driven from JS with plain numbers, not
+         a zoom expression, so each frame is a uniform update rather than a re-layout,
+         and it stops touching the map entirely while nothing is in distress. */
+      const RINGS = ["pulse-a", "pulse-b"];
+      for (const id of RINGS) m.addLayer({
+        id, type: "circle", source: "fleet", filter: ["==", ["get", "d"], 1],
+        paint: { "circle-opacity": 0, "circle-stroke-color": "#ff2d55",
+                 "circle-stroke-width": 2, "circle-stroke-opacity": 0 },
+      });
+      let was = false;
+      if (!matchMedia("(prefers-reduced-motion: reduce)").matches) requestAnimationFrame(function pulse(now) {
+        if (pulsing || was) {
+          const base = 4 + m.getZoom();   // about the casualty dot's own radius
+          RINGS.forEach((id, n) => {
+            const t = (now / 4000 + n / 2) % 1;   // one ripple every 4 s, per ring
+            m.setPaintProperty(id, "circle-radius", base + t * 34);
+            m.setPaintProperty(id, "circle-stroke-opacity", pulsing ? 0.9 * (1 - t) : 0);
+          });
+          was = pulsing;
+        }
+        requestAnimationFrame(pulse);
+      });
+      /* Every symbol is drawn once per colour onto a canvas at load: an arrow for
+         world zoom, a hull silhouette close in, a circle for a hull that is stopped
+         and so has no heading worth drawing. 27 small bitmaps, no sprite sheet to
+         host, and the outline is baked in so a contact reads on either basemap. */
+      const shapes = {
+        arrow: c => { c.moveTo(12, 2); c.lineTo(19, 21); c.lineTo(12, 17); c.lineTo(5, 21); },
+        hull: c => { c.moveTo(12, 1); c.bezierCurveTo(15.5, 5, 16, 8, 16, 11); c.lineTo(16, 21);
+                     c.quadraticCurveTo(16, 23, 14, 23); c.lineTo(10, 23);
+                     c.quadraticCurveTo(8, 23, 8, 21); c.lineTo(8, 11);
+                     c.bezierCurveTo(8, 8, 8.5, 5, 12, 1); },
+        dot: c => c.arc(12, 12, 5, 0, 2 * Math.PI),
+      };
+      for (const [g, color] of Object.entries(GROUP_COLORS)) {
+        for (const [shape, path] of Object.entries(shapes)) {
+          const cv = document.createElement("canvas");
+          cv.width = cv.height = 48;
+          const c = cv.getContext("2d");
+          c.scale(2, 2);
+          c.beginPath(); path(c); c.closePath();
+          c.fillStyle = color; c.fill();
+          c.lineWidth = 1.5; c.lineJoin = "round";
+          c.strokeStyle = g === "distress" || g === "own" || !dark ? "#ffffff" : "#0d0d0d";
+          c.stroke();
+          if (shape === "hull") {   // superstructure aft, so it reads as a ship
+            c.fillStyle = "rgba(0,0,0,.35)"; c.fillRect(10, 16, 4, 3);
+          }
+          m.addImage(`${shape}-${g}`, c.getImageData(0, 0, 48, 48), { pixelRatio: 2 });
+        }
+      }
+      const stopped = ["==", ["get", "st"], 1];
+      const icon = moving => ["concat", ["case", stopped, "dot", moving], "-", ["get", "g"]];
       m.addLayer({
-        id: "ships", type: "circle", source: "fleet",
-        // Casualties paint last. In a dense lane a red contact drawn in feed order
-        // ends up underneath the merchant traffic around it, which is the one dot
-        // on the screen that may never be covered.
-        layout: { "circle-sort-key": ["get", "d"] },
-        paint: {
-          /* One zoom interpolation only: maplibre rejects a `case` wrapping two of
-             them, so the casualty/normal choice goes inside each stop. A casualty
-             has to be findable at world zoom, where 1.7px is not. */
-          "circle-radius": ["interpolate", ["linear"], ["zoom"],
-            1, ["case", ["==", ["get", "d"], 1], 5, 1.7],
-            4, ["case", ["==", ["get", "d"], 1], 7, 3],
-            8, ["case", ["==", ["get", "d"], 1], 11, 6],
-            12, ["case", ["==", ["get", "d"], 1], 15, 9]],
-          /* Mid-luminance, saturated colours, so every class reads on positron's grey
-             water and on the dark style's near-black alike. */
-          "circle-color": [
-            "case",
-            ["==", ["get", "d"], 1], "#ff2d55",
-            ["==", ["get", "k"], 1], "#ff8705",
-            ["==", ["get", "s"], 1], "#10b981",
-            ["==", ["get", "t"], 7], "#9ca3af",
-            ["==", ["get", "t"], 2], "#8b5cf6",
-            ["==", ["get", "t"], 0], "#1e9bd7",
-            "#5b6b8c",
-          ],
-          "circle-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.75, 6, 0.95],
-          "circle-stroke-width": ["interpolate", ["linear"], ["zoom"],
-            4, ["case", ["==", ["get", "d"], 1], 1.5, 0], 7, 1.5],
-          "circle-stroke-color": ["case", ["==", ["get", "d"], 1], "#ffffff", dark ? "#0d0d0d" : "#ffffff"],
+        id: "ships", type: "symbol", source: "fleet",
+        layout: {
+          // Arrows until zoom 8, hulls after: a silhouette at world zoom is a blob.
+          "icon-image": ["step", ["zoom"], icon("arrow"), 8, icon("hull")],
+          // One zoom interpolation only: maplibre rejects a `case` wrapping two of
+          // them, so the casualty/normal choice goes inside each stop. A casualty
+          // has to be findable at world zoom.
+          "icon-size": ["interpolate", ["linear"], ["zoom"],
+            1, ["case", ["==", ["get", "d"], 1], 0.5, 0.28],
+            4, ["case", ["==", ["get", "d"], 1], 0.65, 0.42],
+            8, ["case", ["==", ["get", "d"], 1], 1, 0.75],
+            12, ["case", ["==", ["get", "d"], 1], 1.5, 1.25]],
+          "icon-rotate": ["get", "c"],
+          "icon-rotation-alignment": "map",
+          // Never hide a contact to avoid a collision. A picture that drops ships
+          // in a dense lane is lying about the traffic.
+          "icon-allow-overlap": true, "icon-ignore-placement": true,
+          // Casualties paint last. In a dense lane a red contact drawn in feed order
+          // ends up underneath the merchant traffic around it, which is the one
+          // contact on the screen that may never be covered.
+          "symbol-sort-key": ["get", "d"],
         },
+        paint: { "icon-opacity": ["interpolate", ["linear"], ["zoom"], 1, 0.8, 6, 1] },
       });
     });
     return m;
   }
 
   const fc = features => ({ type: "FeatureCollection", features });
+  let pulsing = false;   // ponytail: one map per page; set by the last frame drawn
+
+  /* Map colour per vessel group, indexed like KINDS. Mid-luminance and saturated so
+     each reads on positron's grey water and the dark style's near-black. Red is
+     distress and orange is AIS dark; no vessel type may use either. The ops and
+     bridge legends repeat these hexes, so change them together. */
+  const GROUP = ["cargo", "cargo", "tanker", "tanker", "cargo", "cargo", "passenger",
+                 "fishing", "tug", "state", "state", "research"];
+  const GROUP_COLORS = {
+    distress: "#ff2d55", dark: "#ff8705", cargo: "#1e9bd7", tanker: "#8b5cf6",
+    passenger: "#eab308", fishing: "#9ca3af", tug: "#c2845a", state: "#10b981",
+    research: "#5b6b8c",
+    own: "#4285f4",   // the bridge portal's own ship only; never assigned from a frame
+  };
 
   /* A frame -> GeoJSON. Row is [mmsi, lat, lon, course, kindIdx, flags] and flags
-     packs distressed/dark/sar-capable.
+     packs distressed/dark/sar-capable/stopped.
 
      Casualties are merged in from the frame's own `distressed` list rather than
      taken only from the culled rows. The server culls to the viewport, so a ship in
      distress outside it would vanish from the map at exactly the moment an operator
      needs to see it. Every portal draws every casualty, always. */
   function frameToGeoJSON(f) {
-    const feature = (m, lat, lon, c, t, d, k, s) => ({
+    const feature = (m, lat, lon, c, t, d, k, st) => ({
       type: "Feature",
       geometry: { type: "Point", coordinates: [lon, lat] },
-      properties: { m, c, t, d, k, s },
+      properties: { m, c, d, st, g: d ? "distress" : k ? "dark" : GROUP[t] || "research" },
     });
     const out = (f.rows || []).map(r => feature(
       r[0], r[1], r[2], r[3], r[4],
-      r[5] & 1 ? 1 : 0, r[5] & 2 ? 1 : 0, r[5] & 4 ? 1 : 0));
+      r[5] & 1 ? 1 : 0, r[5] & 2 ? 1 : 0, r[5] & 8 ? 1 : 0));
     const seen = new Set((f.rows || []).map(r => r[0]));
     for (const v of f.distressed || []) {
       if (seen.has(v.mmsi)) continue;
       out.push(feature(v.mmsi, v.lat, v.lon, v.course, KINDS.indexOf(v.kind),
-                       1, v.dark ? 1 : 0, v.sarCapable ? 1 : 0));
+                       1, v.dark ? 1 : 0, v.speed < 0.5 ? 1 : 0));
     }
+    pulsing = out.some(x => x.properties.d);
     return fc(out);
   }
 

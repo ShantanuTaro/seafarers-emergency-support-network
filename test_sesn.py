@@ -377,6 +377,49 @@ def test_own_ship_marker_plots_lon_lat_in_that_order():
     assert got["signed out"] == [], got["signed out"]
 
 
+def test_assist_line_takes_the_short_way_across_the_antimeridian():
+    """The bridge draws a line from a tapped responder to own ship. GeoJSON is
+    [lon, lat], and a responder just across 180 must be drawn a few miles east, not
+    around the planet. A stopped responder gets no ETA rather than a divide by zero."""
+    import json
+    import shutil
+    import subprocess
+    import tempfile
+    from pathlib import Path
+
+    node = shutil.which("node")
+    if not node:
+        print("  ..  node not found, skipping assist line check")
+        return
+
+    web = Path(__file__).resolve().parent / "web"
+    src = (web / "vessel.html").read_text()
+    start = src.index("function assistGeometry(own, r) {")
+    depth, i = 0, src.index("{", start)
+    for i in range(i, len(src)):
+        depth += (src[i] == "{") - (src[i] == "}")
+        if depth == 0:
+            break
+    harness = (web / "common.js").read_text() + src[start:i + 1] + """
+    const own = { lat: -17, lon: 179.9 };
+    console.log(JSON.stringify([
+      assistGeometry(own, { lat: -17, lon: -179.9, speed: 10 }),
+      assistGeometry(own, { lat: -16, lon: 179.5, speed: 0 }),
+    ]));"""
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "assist.js"
+        path.write_text(harness)
+        proc = subprocess.run([node, str(path)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    across, stopped = json.loads(proc.stdout)
+
+    (rlon, rlat), (olon, olat) = across["coords"]
+    assert (olon, olat) == (179.9, -17), across
+    assert abs(rlon - 180.1) < 1e-9 and rlat == -17, f"went the long way: {across}"
+    assert 11 < across["nm"] < 12 and 1.1 < across["hours"] < 1.2, across
+    assert stopped["hours"] is None and stopped["coords"][0] == [179.5, -16], stopped
+
+
 def test_every_recipient_class_has_a_plain_language_explainer():
     """Both consoles describe the five recipients from one table in common.js. An
     operator releasing a message to "MRCC SIM-TASMAN" and a master reading who was
@@ -443,6 +486,7 @@ def test_repaint_holds_scroll_only_while_the_view_is_the_same():
       set innerHTML(v) { this._html = v; box.scrollTop = 0; },   // what a browser does
       get innerHTML() { return this._html; },
       querySelector: () => box,
+      querySelectorAll: () => [],
       closest: () => box,
     };
     %s
@@ -516,6 +560,74 @@ def test_a_double_tap_raises_one_incident_and_every_draft_says_why():
     client.post(f"/api/clear/{mmsi}")
     again = client.post("/api/inject", json={"mmsi": mmsi, "fault": "collision"}).json()["id"]
     assert again != inc.id, "after stand-down a real second emergency was swallowed"
+
+
+def test_the_fleet_is_at_sea():
+    """A demo audience asked why the ships were on land, and they were: 45% of anchorage
+    traffic, a quarter of the fishing fleet, and lanes that looped from their last
+    waypoint to their first straight across a continent. Checked three ways, because
+    each of those came from a different place: lane geometry, placement, and movement.
+
+    Tolerances are for the mask, not the fleet. 1:50m land closes the narrowest straits
+    (Gulf of Suez, the Sound, the Bosporus), which read as a few nm of land on a leg and
+    a handful of hulls passing through them at any moment."""
+    from sesn.land import is_land
+    from sesn.sim import CORRIDORS, Simulator, bearing_deg, haversine_nm, step_position
+
+    for name, waypoints in CORRIDORS.items():
+        for a, b in zip(waypoints, waypoints[1:]):
+            nm = haversine_nm(*a, *b)
+            n = max(1, int(nm / 2))
+            lat, lon, ashore = *a, 0
+            for _ in range(n):
+                lat, lon = step_position(lat, lon, bearing_deg(lat, lon, *b), nm / n)
+                ashore += is_land(lat, lon)
+            assert ashore * nm / n <= 10, f"{name} {a}->{b} crosses {ashore * nm / n:.0f} nm of land"
+
+    sim = Simulator()
+    placed = [s.name for s in sim.ships.values() if is_land(s.lat, s.lon)]
+    assert not placed, f"{len(placed)} hulls placed on land, e.g. {placed[:3]}"
+
+    for _ in range(120):   # ten wall-clock minutes, twenty simulated hours
+        sim.tick(5.0)
+    ashore = sum(is_land(s.lat, s.lon) for s in sim.ships.values())
+    assert ashore <= len(sim.ships) // 500, f"{ashore} hulls sailed onto land"
+
+
+def test_every_lane_carries_traffic_both_ways():
+    """Every lane hull once started on the outbound half of its out-and-back route, so
+    the whole world fleet sailed each lane in one direction, nose to tail."""
+    from collections import Counter
+    from sesn.sim import CORRIDORS
+
+    sim = Simulator()
+    homeward = Counter()
+    total = Counter()
+    for s in sim.ships.values():
+        if s.corridor in CORRIDORS:
+            total[s.corridor] += 1
+            homeward[s.corridor] += s.leg >= len(CORRIDORS[s.corridor]) - 1
+    for lane, n in total.items():
+        assert 0.35 < homeward[lane] / n < 0.65, f"{lane}: {homeward[lane]}/{n} homeward"
+
+
+def test_a_crew_comment_reaches_triage_and_the_rescue_centre():
+    """The comment typed beside an emergency button is the crew's own evidence. It has to
+    reach the classifier (report_text is what triage reads) and the rescue centre's draft,
+    not only the screen."""
+    from fastapi.testclient import TestClient
+
+    from sesn.main import app
+
+    client = TestClient(app)
+    mmsi = client.get("/api/search", params={"sample": 1}).json()[0]["mmsi"]
+    inc = client.post("/api/inject", json={"mmsi": mmsi, "fault": "fire",
+                                           "comment": "two crew missing"}).json()
+    assert inc["crew_comment"] == "two crew missing"
+    assert "two crew missing" in inc["report_text"], "triage never saw the comment"
+    mrcc = next(p for p in inc["packets"] if p["recipient_class"] == "mrcc")
+    assert "CREW COMMENT: two crew missing" in mrcc["body"]
+    client.post(f"/api/clear/{mmsi}")
 
 
 if __name__ == "__main__":
