@@ -134,8 +134,12 @@ def classify(text: str, telemetry: Telemetry | None) -> TriageResult:
     if text_matched and telemetry and telemetry.nav_status == 6:
         scores[T.GROUNDING] += 1
 
+    # A hostile act outranks any count of effect terms, not just ties: a drone strike
+    # report says "fire" and "burns" more often than "drone", and scoring it a Fire
+    # sends an unarmed SAR hull into a weapons area.
     order = {t: i for i, (t, _) in enumerate(RULES)}
-    ranked = sorted(((v, -order[k], k) for k, v in scores.items() if v > 0), reverse=True)
+    ranked = sorted(((k in (T.ATTACK, T.PIRACY), v, -order[k], k)
+                     for k, v in scores.items() if v > 0), reverse=True)
 
     # 2. Telemetry-only reasoning is its own path and must not be dressed up as a
     #    text match. A silent grounding has no report to quote and real unknowns to
@@ -169,7 +173,7 @@ def classify(text: str, telemetry: Telemetry | None) -> TriageResult:
                             unknowns=["Nature of the incident"],
                             rationale="No classifying signal in the report or telemetry.")
 
-    score, _, best = ranked[0]
+    _, score, _, best = ranked[0]
     severity = BASE_SEVERITY[best]
     if any(e in low for e in ESCALATORS):
         severity = S.CRITICAL

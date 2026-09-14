@@ -31,7 +31,7 @@ CORPUS = Path(__file__).resolve().parent / "corpus.json"
 # front of a marine board. The baseline does not meet it and is not expected to.
 # The run prints the shortfall on every invocation so the gap cannot quietly
 # become the new normal.
-GATE_TYPE_ACCURACY = 0.90
+GATE_TYPE_ACCURACY = 0.93
 GATE_UNDER_TRIAGE = 0.10
 
 TARGET_TYPE_ACCURACY = 0.95

@@ -261,7 +261,7 @@ covering all ten incident types plus `Unknown`, scored per type, gating CI.
 
 | Metric | Score | Target |
 | --- | --- | --- |
-| Incident type accuracy | 90.0% | 95% |
+| Incident type accuracy | 93.3% | 95% |
 | Severity exact | 63.3% | |
 | Severity within one band | 96.7% | |
 | **Under-triage rate** | **10.0%** | **5%** |
@@ -270,8 +270,8 @@ covering all ten incident types plus `Unknown`, scored per type, gating CI.
 | --- | --- | --- | --- |
 | Unknown | 4 | 100% | 67% |
 | Piracy | 3 | 67% | 100% |
-| Attack | 3 | 67% | 100% |
-| Fire | 3 | 100% | 75% |
+| Attack | 3 | 100% | 100% |
+| Fire | 3 | 100% | 100% |
 | Flooding | 2 | 100% | 100% |
 | Collision | 2 | 100% | 100% |
 | Grounding | 3 | 100% | 100% |
